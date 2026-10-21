@@ -24,6 +24,7 @@ import { auth, db } from './firebaseConfig';
 // Generic real-time collection listener with local fallback safety
 export function subscribeToCollection(collectionName, onData, onError) {
   try {
+    if (!db) return () => {};
     const colRef = collection(db, collectionName);
     const unsubscribe = onSnapshot(
       colRef,
@@ -46,6 +47,7 @@ export function subscribeToCollection(collectionName, onData, onError) {
 // Save document with explicit ID
 export async function setFirestoreDoc(collectionName, docId, data) {
   try {
+    if (!db) return { success: false, error: 'Database not initialized' };
     const docRef = doc(db, collectionName, String(docId));
     await setDoc(docRef, { ...data, updatedAt: new Date().toISOString() }, { merge: true });
     return { success: true };
@@ -58,6 +60,7 @@ export async function setFirestoreDoc(collectionName, docId, data) {
 // Add document with auto ID
 export async function addFirestoreDoc(collectionName, data) {
   try {
+    if (!db) return { success: false, error: 'Database not initialized' };
     const colRef = collection(db, collectionName);
     const docRef = await addDoc(colRef, {
       ...data,
@@ -73,6 +76,7 @@ export async function addFirestoreDoc(collectionName, data) {
 // Delete document
 export async function deleteFirestoreDoc(collectionName, docId) {
   try {
+    if (!db) return { success: false, error: 'Database not initialized' };
     const docRef = doc(db, collectionName, String(docId));
     await deleteDoc(docRef);
     return { success: true };
@@ -85,6 +89,7 @@ export async function deleteFirestoreDoc(collectionName, docId) {
 // Firebase Auth: Student Registration (sets status: PENDING)
 export async function registerStudentFirebase({ name, rollNo, department, email, password }) {
   try {
+    if (!auth || !db) return { success: false, error: 'Firebase not configured' };
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const uid = userCredential.user.uid;
 
@@ -125,6 +130,7 @@ export async function registerStudentFirebase({ name, rollNo, department, email,
 // Firebase Auth: Teacher Registration (sets status: APPROVED)
 export async function registerTeacherFirebase({ name, facultyNo, department, email, password, designation }) {
   try {
+    if (!auth || !db) return { success: false, error: 'Firebase not configured' };
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const uid = userCredential.user.uid;
 
@@ -153,6 +159,7 @@ export async function registerTeacherFirebase({ name, facultyNo, department, ema
 // Firebase Auth: Login with approval check
 export async function loginFirebase(email, password, role) {
   try {
+    if (!auth || !db) return { success: false, error: 'Firebase not configured' };
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const uid = userCredential.user.uid;
 
