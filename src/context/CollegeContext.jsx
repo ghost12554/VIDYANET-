@@ -31,6 +31,25 @@ import { isRealFirebaseConfigured } from '../firebase/firebaseConfig';
 const CollegeContext = createContext(null);
 
 export function CollegeProvider({ children }) {
+  // One-time cache reset to clear pre-uploaded/dummy records from user's browser
+  const FRESH_RESET_KEY = 'indira_ums_fresh_v5';
+  if (typeof localStorage !== 'undefined' && localStorage.getItem('indira_ums_reset_version') !== FRESH_RESET_KEY) {
+    localStorage.removeItem('indira_ums_notes');
+    localStorage.removeItem('indira_ums_labNotes');
+    localStorage.removeItem('indira_ums_assignments');
+    localStorage.removeItem('indira_ums_tests');
+    localStorage.removeItem('indira_ums_tasks');
+    localStorage.removeItem('indira_ums_chats');
+    localStorage.removeItem('indira_ums_posts');
+    localStorage.removeItem('indira_ums_notifications');
+    localStorage.removeItem('indira_ums_awarenessMessages');
+    localStorage.removeItem('indira_ums_emergencyDocs');
+    localStorage.removeItem('indira_ums_attendance');
+    localStorage.removeItem('indira_ums_practicalAttendance');
+    localStorage.removeItem('indira_ums_botHistory');
+    localStorage.setItem('indira_ums_reset_version', FRESH_RESET_KEY);
+  }
+
   // Load state from localStorage or defaults
   const loadState = (key, fallback) => {
     try {
@@ -655,7 +674,7 @@ export function CollegeProvider({ children }) {
     let presentClasses = 0;
     const subjectBreakdown = {};
 
-    attendance.records.forEach((rec) => {
+    (attendance?.records || []).forEach((rec) => {
       if (rec.attendance && studentRoll in rec.attendance) {
         totalClasses++;
         const isPresent = Boolean(rec.attendance[studentRoll]);

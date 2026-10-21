@@ -105,34 +105,7 @@ export default function LoginPage() {
     }
   };
 
-  // Fast demo credential presets
-  const fillDemo = (type) => {
-    setErrorMessage('');
-    setPendingNotice(null);
-    if (type === 'student-approved') {
-      setAuthRole('student');
-      setAuthMode('signin');
-      setEmail('aarav.student@indira.edu');
-      setPassword('password123');
-    } else if (type === 'student-pending') {
-      setAuthRole('student');
-      setAuthMode('signin');
-      setEmail('isha.patel@indira.edu');
-      setPassword('password123');
-    } else if (type === 'teacher') {
-      setAuthRole('teacher');
-      setAuthMode('signin');
-      setEmail('divya.c@indira.edu');
-      setPassword('password123');
-    }
-  };
 
-  const handleInstantTeacherLogin = () => {
-    const res = login('divya.c@indira.edu', 'password123', 'teacher');
-    if (!res.success) {
-      setErrorMessage(res.error || 'Failed to login as faculty.');
-    }
-  };
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col justify-between relative overflow-hidden font-sans text-slate-100 selection:bg-indigo-500 selection:text-white">
@@ -203,8 +176,8 @@ export default function LoginPage() {
                 setAuthRole('teacher');
                 setErrorMessage('');
                 setPendingNotice(null);
-                setEmail('divya.c@indira.edu');
-                setPassword('password123');
+                setEmail('');
+                setPassword('');
               }}
               className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition ${
                 authRole === 'teacher'
@@ -216,20 +189,6 @@ export default function LoginPage() {
               <span>Teacher Portal</span>
             </button>
           </div>
-
-          {/* Quick Teacher 1-Click Login Option if Teacher Selected */}
-          {authRole === 'teacher' && authMode === 'signin' && (
-            <div className="mb-4">
-              <button
-                type="button"
-                onClick={handleInstantTeacherLogin}
-                className="w-full py-2.5 px-4 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-purple-600/30 flex items-center justify-center gap-2 transition ring-1 ring-purple-400/40"
-              >
-                <Sparkles className="w-4 h-4 text-amber-300" />
-                <span>⚡ Instant 1-Click Login as Teacher (Prof. Divya C)</span>
-              </button>
-            </div>
-          )}
 
           {/* 2. Sub-mode Switcher: Sign In vs Registration */}
           <div className="flex items-center justify-center gap-4 pb-4 mb-4 border-b border-slate-800/80 text-xs">
@@ -558,35 +517,6 @@ export default function LoginPage() {
             </form>
           )}
 
-          {/* Quick Demo Test Buttons */}
-          <div className="mt-6 pt-5 border-t border-slate-800 text-center">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">
-              Quick Test Demo Accounts:
-            </p>
-            <div className="flex flex-wrap justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => fillDemo('student-approved')}
-                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 text-[11px] font-semibold transition"
-              >
-                🎓 Aarav (Approved Student)
-              </button>
-              <button
-                type="button"
-                onClick={() => fillDemo('student-pending')}
-                className="px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-[11px] font-semibold transition"
-              >
-                ⏳ Isha (Pending Request)
-              </button>
-              <button
-                type="button"
-                onClick={() => fillDemo('teacher')}
-                className="px-2.5 py-1.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30 text-[11px] font-semibold transition"
-              >
-                👩‍🏫 Prof. Divya C (Teacher)
-              </button>
-            </div>
-          </div>
         </div>
       </main>
 

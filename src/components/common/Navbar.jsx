@@ -95,37 +95,25 @@ export default function Navbar({ onOpenAuth }) {
           </div>
         </div>
 
-        {/* Center Role Toggle Pill */}
+        {/* Center Role Badge (Read-only, matches logged in account) */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center bg-slate-950/80 p-1 rounded-xl border border-slate-800 shadow-inner">
-            <button
-              onClick={() => switchRole('student')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                userRole === 'student'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-            >
-              <GraduationCap className="w-3.5 h-3.5" />
-              <span>Student Portal</span>
-            </button>
-
-            <button
-              onClick={() => switchRole('teacher')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition relative ${
-                userRole === 'teacher'
-                  ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-            >
-              <UserCheck className="w-3.5 h-3.5" />
-              <span>Teacher Portal</span>
-              {pendingRequestsCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] text-white font-bold animate-bounce">
-                  {pendingRequestsCount}
-                </span>
-              )}
-            </button>
+          <div className="flex items-center px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs font-semibold">
+            {userRole === 'student' ? (
+              <span className="flex items-center gap-1.5 text-indigo-300">
+                <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
+                Student Portal
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 text-purple-300">
+                <UserCheck className="w-3.5 h-3.5 text-purple-400" />
+                Teacher Portal
+                {pendingRequestsCount > 0 && (
+                  <span className="ml-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] text-white font-bold">
+                    {pendingRequestsCount}
+                  </span>
+                )}
+              </span>
+            )}
           </div>
         </div>
 
@@ -324,17 +312,6 @@ export default function Navbar({ onOpenAuth }) {
                 </div>
 
                 <div className="p-1 space-y-1">
-                  <button
-                    onClick={() => {
-                      switchRole(userRole === 'student' ? 'teacher' : 'student');
-                      setShowUserMenu(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-300 hover:text-white hover:bg-slate-800 transition"
-                  >
-                    <Repeat className="w-3.5 h-3.5 text-indigo-400" />
-                    Switch to {userRole === 'student' ? 'Teacher' : 'Student'}
-                  </button>
-
                   <button
                     onClick={() => {
                       setShowUserMenu(false);
