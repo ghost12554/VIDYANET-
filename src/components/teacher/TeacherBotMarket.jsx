@@ -83,7 +83,6 @@ export default function TeacherBotMarket() {
   const [assignGenForm, setAssignGenForm] = useState({
     topic: '',
     numQuestions: 3,
-    rules: 'Include 1 theoretical proof, 1 step-by-step trace problem with adjacency matrix, and 1 algorithm efficiency implementation problem.',
     deadline: '2026-10-30T23:59',
     maxMarks: 45,
     referenceDoc: null,
@@ -269,9 +268,8 @@ export default function TeacherBotMarket() {
   // --- 2. AI ASSIGNMENT GENERATION HANDLER ---
   const handleLoadAssignSample = () => {
     setAssignGenForm({
-      topic: 'Graph Theory: Dijkstra & Bellman-Ford Shortest Paths',
+      topic: 'Graph Theory: Dijkstra & Bellman-Ford Shortest Paths. Include 1 mathematical proof problem, 1 step-by-step trace problem with adjacency matrix, and 1 algorithm efficiency implementation problem with negative edge analysis.',
       numQuestions: 3,
-      rules: 'Include 1 proof problem, 1 step-by-step trace problem with adjacency matrix, and 1 algorithm efficiency implementation problem with negative edge analysis.',
       deadline: '2026-10-30T23:59',
       maxMarks: 45,
       referenceDoc: {
@@ -285,7 +283,7 @@ export default function TeacherBotMarket() {
   const handleGenerateAssignment = async (e) => {
     e.preventDefault();
     if (!assignGenForm.topic.trim()) {
-      alert('Assignment Topic is mandatory.');
+      alert('Assignment Topic & Instructions Prompt is mandatory.');
       return;
     }
     setIsGeneratingAssign(true);
@@ -293,7 +291,7 @@ export default function TeacherBotMarket() {
       const assignResult = await generateAIAssignment({
         topic: assignGenForm.topic.trim(),
         numQuestions: assignGenForm.numQuestions,
-        rules: assignGenForm.rules?.trim() || '',
+        rules: assignGenForm.topic.trim(),
         deadline: assignGenForm.deadline,
         maxMarks: assignGenForm.maxMarks,
         department: attendanceDept,
@@ -981,17 +979,18 @@ export default function TeacherBotMarket() {
           </div>
 
           <form onSubmit={handleGenerateAssignment} className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-            <div className="md:col-span-2">
+            {/* Unified Topic & Instructions Prompt */}
+            <div className="md:col-span-3">
               <label className="block font-semibold text-slate-300 mb-1">
-                Assignment Topic <span className="text-rose-400 font-bold">* (Mandatory)</span>
+                Assignment Topic & Instructions Prompt <span className="text-rose-400 font-bold">* (Mandatory)</span>
               </label>
-              <input
-                type="text"
+              <textarea
+                rows={3}
                 required
-                placeholder="e.g. Graph Algorithms & Shortest Path Complexities"
+                placeholder="Describe your assignment topic, criteria, rules, and constraints (e.g. 'Python modules fundamental assignment with step-by-step package setup, circular import debugging, and runtime analysis. Require docstrings and unit tests.')"
                 value={assignGenForm.topic}
                 onChange={(e) => setAssignGenForm({ ...assignGenForm, topic: e.target.value })}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 leading-relaxed resize-y"
               />
             </div>
 
@@ -1006,20 +1005,6 @@ export default function TeacherBotMarket() {
                 required
                 value={assignGenForm.numQuestions}
                 onChange={(e) => setAssignGenForm({ ...assignGenForm, numQuestions: e.target.value })}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
-              />
-            </div>
-
-            <div className="md:col-span-3">
-              <label className="block font-semibold text-slate-300 mb-1">
-                Rules & Difficulty Guidelines <span className="text-rose-400 font-bold">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Require implementation in Python or C++, formal runtime bounds, and proof of correctness"
-                value={assignGenForm.rules}
-                onChange={(e) => setAssignGenForm({ ...assignGenForm, rules: e.target.value })}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
               />
             </div>
@@ -1080,7 +1065,7 @@ export default function TeacherBotMarket() {
                 {isGeneratingAssign ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Synthesizing Assignment with LLaMA 3.3...</span>
+                    <span>Synthesizing Assignment Problems...</span>
                   </>
                 ) : (
                   <>
@@ -1122,9 +1107,17 @@ export default function TeacherBotMarket() {
                   <div className="space-y-2 pt-2 border-t border-slate-800">
                     <p className="font-semibold text-purple-300">Assignment Problems:</p>
                     {generatedAssignment.questions.map((q, idx) => (
-                      <div key={idx} className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                      <div
+                        key={`assign-q-${generatedAssignment._generatedAt || ''}-${idx}-${(q.title || '').slice(0, 15)}`}
+                        className="p-3 rounded-xl bg-slate-950 border border-slate-800"
+                      >
                         <p className="font-bold text-white">Problem #{idx + 1}: {q.title || `Task ${idx + 1}`}</p>
-                        <p className="text-slate-300 mt-1">{q.problem || q}</p>
+                        <p className="text-slate-300 mt-1 leading-relaxed">{q.problem || q.description || q}</p>
+                        {q.deliverables && (
+                          <p className="text-indigo-400 text-[11px] mt-1.5 font-mono">
+                            Deliverables: {q.deliverables}
+                          </p>
+                        )}
                       </div>
                     ))}
                   </div>

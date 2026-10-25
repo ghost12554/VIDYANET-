@@ -1015,6 +1015,140 @@ Required JSON Schema:
 // ----------------------------------------------------
 // 2. AI ASSIGNMENT GENERATOR
 // ----------------------------------------------------
+const ASSIGNMENT_SUBTOPIC_BANKS = {
+  pythonModules: {
+    match: /\b(module|modules|import|package|packages|namespace|init)\b/i,
+    title: 'Python Modular Architecture & Package Management Assignment',
+    problems: [
+      {
+        title: 'Hierarchical Package Structure & Custom Imports',
+        desc: 'Design and implement a multi-package Python project structure containing an outer package and sub-packages with __init__.py files. Implement both absolute and relative imports across packages, and demonstrate the exact difference between "import pkg.mod" and "from pkg.mod import func".',
+        deliverable: 'Complete directory tree, Python source files, and a test script verifying import resolutions.',
+      },
+      {
+        title: 'Circular Dependency Detection & Resolution',
+        desc: 'Construct a reproducible code scenario that triggers a Python circular dependency "ImportError: cannot import name ... from partially initialized module". Analyze the interpreter\'s module loading lifecycle in sys.modules, and refactor the code using standard architectural patterns (dependency inversion or deferred function-level imports) to resolve the cycle.',
+        deliverable: 'Before/after code samples with an explanation of sys.modules cache behavior.',
+      },
+      {
+        title: 'Module Execution Entry Points & __name__ Guards',
+        desc: 'Write a comprehensive utility module that behaves as a stand-alone CLI tool when run directly (python -m module_name), but exports clean, reusable library classes when imported by external scripts. Enforce proper use of \'if __name__ == "__main__":\' with argparse.',
+        deliverable: 'Fully documented Python module with argparse CLI options and unit tests.',
+      },
+      {
+        title: 'Dynamic Importing with importlib & sys.path Manipulation',
+        desc: 'Implement a plugin loader using Python\'s built-in importlib module that dynamically discovers, validates, and loads plugin modules at runtime from an arbitrary directory path appended to sys.path.',
+        deliverable: 'Plugin loader implementation with defensive error handling for missing modules and syntax exceptions.',
+      },
+    ],
+  },
+  pythonArrays: {
+    match: /\b(array|arrays|list|lists|slice|slicing|indexing)\b/i,
+    title: 'Python Arrays, Lists & Sequence Operations Assignment',
+    problems: [
+      {
+        title: 'Dynamic Array Resizing & Amortized Cost Proof',
+        desc: 'Python lists are implemented as dynamically resized arrays of pointers. Write a script measuring list memory footprint and reallocation jumps as elements are appended. Formulate the mathematical proof demonstrating why append() has O(1) amortized time despite periodic O(N) over-allocation reallocations.',
+        deliverable: 'Memory growth benchmark script, output log, and formal mathematical amortized analysis.',
+      },
+      {
+        title: 'In-Place Slice Modification & Sliding Window Algorithm',
+        desc: 'Implement a sliding-window maximum algorithm on a numeric sequence of size N with window size K. Disallow auxiliary array cloning. Use indexing techniques to achieve O(N) linear time using a double-ended queue (collections.deque).',
+        deliverable: 'Documented Python function, complexity proof, and boundary test cases (K=1, K=N, negative numbers).',
+      },
+      {
+        title: 'Performance Benchmark: List vs array.array vs numpy.ndarray',
+        desc: 'Implement an empirical benchmark comparing memory consumption and arithmetic operation speed across standard Python list, built-in array.array, and numpy.ndarray for 1,000,000 float values.',
+        deliverable: 'Benchmarking script with execution time charts and memory footprint comparison table.',
+      },
+      {
+        title: 'Multi-Dimensional Matrix Transformations Without NumPy',
+        desc: 'Implement in-place matrix rotation by 90 degrees clockwise and matrix transposition using pure Python nested lists. Prove the auxiliary space is strictly O(1) and runtime is O(N²).',
+        deliverable: 'Source code with assert tests, state transition diagrams, and space complexity evaluation.',
+      },
+    ],
+  },
+  pythonDicts: {
+    match: /\b(dict|dicts|dictionary|dictionaries|hashmap|hash|key)\b/i,
+    title: 'Python Dictionaries, Hash Tables & Key Invariants Assignment',
+    problems: [
+      {
+        title: 'Hash Collision Handling & Custom Hashable Classes',
+        desc: 'Implement a custom class that overrides __hash__() and __eq__(). Demonstrate what occurs when two objects produce identical hash values (hash collision) and verify how Python dictionaries resolve collisions internally.',
+        deliverable: 'Python script showing collision resolution, hash distribution analysis, and correct equality behavior.',
+      },
+      {
+        title: 'High-Throughput Inverted Index with defaultdict',
+        desc: 'Build an in-memory inverted text index using collections.defaultdict(set). Process a corpus of text documents, mapping each unique word token to the set of document IDs containing it in O(W) time.',
+        deliverable: 'Working inverted index module with keyword query evaluation and performance benchmarks.',
+      },
+    ],
+  },
+  dsaAvl: {
+    match: /\b(avl|rotation|rotations|balance\s*factor|self-balancing)\b/i,
+    title: 'AVL Tree Invariants, Rotations & Proofs Assignment',
+    problems: [
+      {
+        title: 'AVL Node Insertion & Rotation Derivation',
+        desc: 'Implement an AVL Tree class from scratch in Python or C++. Detail the 4 rotation cases: Single Left (LL), Single Right (RR), Left-Right (LR), and Right-Left (RL). Maintain node heights and update balance factors dynamically during insertions.',
+        deliverable: 'Source code implementation with tree traversal visualizer and height validation assert checks.',
+      },
+      {
+        title: 'AVL Deletion & Cascading Balance Propagation',
+        desc: 'Trace and implement node deletion in an AVL tree where removing a node causes multiple cascading rotations propagating up to the root. Demonstrate an example where deletion triggers at least two successive rotations.',
+        deliverable: 'Step-by-step ASCII state diagrams of each rotation and corresponding deletion method code.',
+      },
+      {
+        title: 'Mathematical Proof: Maximum Height Bound of AVL Trees',
+        desc: 'Prove using Fibonacci recurrence relations that the maximum height H of an AVL tree with N nodes is strictly bounded by H < 1.4404 * log2(N + 2) - 0.328, guaranteeing worst-case O(log N) lookup.',
+        deliverable: 'Formal inductive proof written in LaTeX/Markdown.',
+      },
+    ],
+  },
+  graphs: {
+    match: /\b(graph|graphs|dijkstra|bellman|bfs|dfs|shortest\s*path|topological)\b/i,
+    title: 'Graph Theory & Shortest Path Algorithms Coursework',
+    problems: [
+      {
+        title: "Dijkstra's Single-Source Shortest Path with Min-Heap",
+        desc: "Implement Dijkstra's shortest path algorithm using an adjacency list and a binary min-heap priority queue. Prove why the algorithm fails on graphs containing negative edge weights.",
+        deliverable: 'Clean Python code with adjacency list, O((V + E) log V) complexity breakdown, and test graph.',
+      },
+      {
+        title: 'Bellman-Ford Algorithm & Negative Cycle Detection',
+        desc: 'Implement the Bellman-Ford algorithm for a directed graph with 6 vertices and arbitrary edge weights. Trace step-by-step edge relaxations across V-1 iterations and detect negative weight cycles.',
+        deliverable: 'Execution trace table showing distance arrays after each iteration and cycle detection logic.',
+      },
+      {
+        title: 'Topological Sort & Cycle Detection with Kahn’s Algorithm / DFS',
+        desc: 'Implement topological sort for Directed Acyclic Graphs (DAG) using both Kahn’s indegree queue and DFS with 3-color vertex states. Handle disconnected components and cycle exceptions.',
+        deliverable: 'Comparative source code, runtime complexity comparison, and cycle exception handling.',
+      },
+    ],
+  },
+  sqlDb: {
+    match: /\b(sql|database|dbms|rdbms|query|joins?|acid|index|normalization|transaction)\b/i,
+    title: 'Relational Database Schema Design & SQL Optimization Assignment',
+    problems: [
+      {
+        title: 'Complex Relational Reporting with Multiple JOINs',
+        desc: 'Write standard SQL queries on a university relational schema (Students, Courses, Enrollments, Grades, Faculty) utilizing INNER JOIN, LEFT JOIN, and aggregation with GROUP BY and HAVING to find students exceeding department grade averages.',
+        deliverable: 'Schema DDL, sample DML data inserts, and tested SQL queries with execution explanations.',
+      },
+      {
+        title: 'Database Indexing Analysis & EXPLAIN Query Plan',
+        desc: 'Construct a performance experiment on a table with 100,000 rows. Compare query execution times before and after creating a composite B+ Tree index on (department_id, enrollment_date). Analyze the query execution plan (EXPLAIN ANALYZE).',
+        deliverable: 'Query plan output before and after indexing with cost and latency analysis.',
+      },
+      {
+        title: 'ACID Transaction Concurrency & Serializable Isolation',
+        desc: 'Design two concurrent transactions that demonstrate a Phantom Read anomaly under REPEATABLE READ. Show how setting the isolation level to SERIALIZABLE prevents the anomaly.',
+        deliverable: 'SQL transaction script trace detailing timeline, lock states, and isolation mitigation.',
+      },
+    ],
+  },
+};
+
 export async function generateAIAssignment({
   topic,
   numQuestions = 3,
@@ -1024,20 +1158,21 @@ export async function generateAIAssignment({
   referenceText = '',
 }) {
   const cleanTopic = (topic || 'Software Engineering Problem Set').trim();
-  const cleanRules = (rules || 'Include analytical proof, step-by-step trace, and implementation.').trim();
+  const cleanRules = (rules || topic || 'Include analytical proof, step-by-step trace, and implementation.').trim();
   const count = Math.max(1, Math.min(10, Number(numQuestions) || 3));
   const marksPerProblem = 15;
   const ruleAnalysis = analyzeDifficultyAndRules(cleanRules, cleanTopic);
+  const text = (cleanTopic + ' ' + cleanRules).toLowerCase();
 
   const systemPrompt = `You are a university academic coordinator designing practical engineering assignments.
 CRITICAL MANDATE:
 1. Every problem MUST be specifically centered on topic: "${cleanTopic}".
-2. You MUST strictly enforce the teacher's Rules & Difficulty Criteria: "${cleanRules}".
+2. You MUST strictly enforce the teacher's instructions & criteria: "${cleanRules}".
 3. Difficulty Level: ${ruleAnalysis.difficultyTier}.
 4. Return ONLY valid JSON matching the schema below.`;
 
   const userPrompt = `Design a ${count}-problem university coursework assignment on: "${cleanTopic}".
-Rules & Difficulty Criteria: "${cleanRules}"
+Rules & Instructions: "${cleanRules}"
 Deadline: ${deadline}
 Department: ${department}
 ${referenceText ? `Context: ${referenceText.slice(0, 1500)}` : ''}
@@ -1065,12 +1200,20 @@ Required JSON Schema:
   const rawOutput = await callLlmApi({ systemPrompt, userPrompt });
   const parsed = cleanJsonOutput(rawOutput);
 
-  if (parsed && Array.isArray(parsed.problems) && parsed.problems.length > 0) {
-    const formattedProblems = parsed.problems.slice(0, count).map((p, idx) => ({
-      id: `prob-${idx + 1}`,
+  // Check if LLM returned a valid problem list
+  const rawProblems =
+    parsed?.problems ||
+    parsed?.questions ||
+    parsed?.tasks ||
+    parsed?.assignments ||
+    (Array.isArray(parsed) ? parsed : null);
+
+  if (Array.isArray(rawProblems) && rawProblems.length > 0) {
+    const formattedProblems = rawProblems.slice(0, count).map((p, idx) => ({
+      id: `prob-${idx + 1}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       title: p.title || `Problem ${idx + 1}: ${cleanTopic}`,
-      problem: p.description || p.problem || `Formulate a complete analytical solution for ${cleanTopic} following rules: ${cleanRules}.`,
-      description: p.description || p.problem || `Formulate a complete analytical solution for ${cleanTopic} following rules: ${cleanRules}.`,
+      problem: p.description || p.problem || p.statement || `Formulate a complete analytical solution for ${cleanTopic} following rules: ${cleanRules}.`,
+      description: p.description || p.problem || p.statement || `Formulate a complete analytical solution for ${cleanTopic} following rules: ${cleanRules}.`,
       marks: Number(p.marks) || marksPerProblem,
       deliverables: p.deliverables || 'Documented solution with calculations, code, and complexity bounds.',
     }));
@@ -1085,42 +1228,81 @@ Required JSON Schema:
       totalMarks: Number(parsed.maxMarks) || formattedProblems.length * marksPerProblem,
       description: parsed.description || parsed.instructions || `Comprehensive coursework assignment on "${cleanTopic}". All submissions must strictly adhere to criteria: "${cleanRules}".`,
       instructions: parsed.instructions || parsed.description || `Adhere strictly to criteria: ${cleanRules}. Plagiarism will be penalized.`,
-      rubric: parsed.rubric || `Technical Accuracy (50%), Adherence to Criteria "${cleanRules.slice(0, 40)}" (30%), Code Cleanliness/Derivation (20%)`,
+      rubric: parsed.rubric || `Technical Accuracy (50%), Adherence to Prompt Criteria (30%), Code Cleanliness & Proofs (20%)`,
       problems: formattedProblems,
       questions: formattedProblems,
     };
   }
 
-  // Dynamic Rule-Enforcing Fallback for Assignments
+  // Check subtopic bank for high precision
+  let matchedBank = null;
+  for (const key of Object.keys(ASSIGNMENT_SUBTOPIC_BANKS)) {
+    if (ASSIGNMENT_SUBTOPIC_BANKS[key].match.test(text)) {
+      matchedBank = ASSIGNMENT_SUBTOPIC_BANKS[key];
+      break;
+    }
+  }
+
   const fallbackProblems = [];
+  if (matchedBank && Array.isArray(matchedBank.problems)) {
+    for (let i = 0; i < count; i++) {
+      const p = matchedBank.problems[i % matchedBank.problems.length];
+      fallbackProblems.push({
+        id: `prob-${i + 1}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        title: p.title,
+        problem: p.desc,
+        description: p.desc,
+        marks: marksPerProblem,
+        deliverables: p.deliverable,
+      });
+    }
+
+    return {
+      title: matchedBank.title || `${cleanTopic} Coursework Assignment`,
+      subject: 'Computer Science & Engineering',
+      department: department,
+      difficulty: ruleAnalysis.difficultyTier,
+      deadline: deadline,
+      maxMarks: fallbackProblems.length * marksPerProblem,
+      totalMarks: fallbackProblems.length * marksPerProblem,
+      description: `Rigorous assignment on "${cleanTopic}". Complete all problems strictly complying with the specified criteria: "${cleanRules}".`,
+      instructions: `All solutions must strictly satisfy the criteria: "${cleanRules}". Late submissions will lose 10% per day.`,
+      rubric: `Correctness & Mathematical Derivation (40%), Compliance with Prompt Rules (40%), Complexity Analysis (20%)`,
+      problems: fallbackProblems,
+      questions: fallbackProblems,
+    };
+  }
+
+  // Dynamic Rule-Enforcing Fallback for Arbitrary Topics
+  const cleanTitle = cleanTopic.split(/[:\n,;]/)[0].trim().slice(0, 45) || 'this topic';
   const problemTemplates = [
     {
-      title: 'Theoretical Foundations & Proof of Correctness',
-      desc: `Formulate a formal mathematical justification and structural proof for ${cleanTopic}. Analyze why this approach satisfies the criteria: "${cleanRules}". Include step-by-step derivations.`,
-      deliverable: 'Mathematical proof and state transition diagrams in PDF format.',
+      title: 'Theoretical Foundations & Architectural Invariants',
+      desc: `Formulate a formal mathematical justification and structural architectural design for ${cleanTitle}. Analyze why this design satisfies: "${cleanRules}". Include formal component diagrams and boundary proofs.`,
+      deliverable: 'Mathematical analysis, component diagrams, and proof documentation in PDF.',
     },
     {
-      title: 'Concrete Trace Problem & Execution State Table',
-      desc: `Construct an end-to-end trace problem simulating ${cleanTopic} with a non-trivial test dataset. Detail every state transformation, variable mutation, and intermediate memory layout.`,
-      deliverable: 'Tabular trace matrix with written explanations of each step.',
+      title: 'Concrete Trace Simulation & State Mutation Matrix',
+      desc: `Construct an end-to-end trace simulation evaluating ${cleanTitle} across non-trivial test datasets. Detail every state transformation, variable mutation, and intermediate memory layout.`,
+      deliverable: 'Tabular state trace matrix with step-by-step written explanations.',
     },
     {
-      title: 'Optimal Implementation & Constraint Analysis',
-      desc: `Implement an optimized modular algorithm for ${cleanTopic} adhering to: "${cleanRules}". Handle all specified boundary cases (e.g., empty inputs, extreme scale) and evaluate runtime bounds.`,
-      deliverable: 'Clean source code implementation with docstrings and runtime complexity analysis.',
+      title: 'Optimal Implementation & Boundary Constraint Analysis',
+      desc: `Implement an optimized modular solution for ${cleanTitle} strictly adhering to: "${cleanRules}". Handle all specified boundary cases (e.g. empty inputs, concurrent mutations, scale thresholds) and evaluate formal runtime bounds.`,
+      deliverable: 'Clean source code implementation with docstrings, unit tests, and runtime complexity analysis.',
     },
     {
       title: 'System Integration & Stress-Testing Benchmark',
-      desc: `Design an experimental benchmark testing the resilience of ${cleanTopic} under simulated workload pressure. Detail performance bottlenecks and mitigation strategies.`,
-      deliverable: 'Empirical benchmark report with performance graphs and trade-off summary.',
+      desc: `Design an experimental benchmark evaluating the resilience of ${cleanTitle} under simulated workload pressure. Detail performance bottlenecks and systematic mitigation strategies.`,
+      deliverable: 'Empirical benchmark report with latency graphs and architectural trade-off summary.',
     },
   ];
 
-  for (let i = 1; i <= count; i++) {
-    const tmpl = problemTemplates[(i - 1) % problemTemplates.length];
+  for (let i = 0; i < count; i++) {
+    const tmpl = problemTemplates[i % problemTemplates.length];
     fallbackProblems.push({
-      id: `prob-${i}`,
-      title: `${cleanTopic}: ${tmpl.title}`,
+      id: `prob-${i + 1}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      title: `${cleanTitle}: ${tmpl.title}`,
       problem: tmpl.desc,
       description: tmpl.desc,
       marks: marksPerProblem,
@@ -1129,7 +1311,7 @@ Required JSON Schema:
   }
 
   return {
-    title: `${cleanTopic} Coursework Assignment`,
+    title: `${cleanTitle} Coursework Assignment`,
     subject: 'Computer Science & Engineering',
     department: department,
     difficulty: ruleAnalysis.difficultyTier,
@@ -1138,7 +1320,7 @@ Required JSON Schema:
     totalMarks: fallbackProblems.length * marksPerProblem,
     description: `Rigorous assignment on "${cleanTopic}". Complete all problems strictly complying with the specified criteria: "${cleanRules}".`,
     instructions: `All solutions must strictly satisfy the criteria: "${cleanRules}". Late submissions will lose 10% per day.`,
-    rubric: `Correctness & Proofs (40%), Compliance with Rules "${cleanRules.slice(0, 35)}" (40%), Complexity Analysis (20%)`,
+    rubric: `Correctness & Proofs (40%), Compliance with Prompt Rules (40%), Complexity Analysis (20%)`,
     problems: fallbackProblems,
     questions: fallbackProblems,
   };
