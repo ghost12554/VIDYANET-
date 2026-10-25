@@ -9,6 +9,7 @@ import {
   evaluateSubmissionWithAI,
 } from '../../services/aiGeneratorService';
 import { readFileAsAttachment, downloadAttachment, formatFileSize } from '../../utils/fileAttachmentUtils';
+import { generateAssignmentPdf, downloadAssignmentPdf } from '../../utils/assignmentPdfGenerator';
 import {
   Bot,
   Sparkles,
@@ -298,13 +299,27 @@ export default function TeacherBotMarket() {
         referenceText: assignGenForm.referenceDoc?.name || '',
       });
 
-      setGeneratedAssignment({ ...assignResult, _generatedAt: Date.now() });
+      // Automatically synthesize official Indira University Assignment PDF
+      let pdfAtt = null;
+      try {
+        pdfAtt = generateAssignmentPdf(assignResult);
+      } catch (pdfErr) {
+        console.warn('PDF auto-generation warning:', pdfErr);
+      }
+
+      const fullAssignment = {
+        ...assignResult,
+        attachment: pdfAtt || assignResult.attachment || null,
+        _generatedAt: Date.now(),
+      };
+
+      setGeneratedAssignment(fullAssignment);
 
       saveBotHistoryItem({
         panel: 'Assignment Generator',
         title: assignResult.title,
-        details: `${assignGenForm.numQuestions} problems • Due: ${assignGenForm.deadline} • Max Marks: ${assignResult.maxMarks}`,
-        data: assignResult,
+        details: `${assignGenForm.numQuestions} problems • Due: ${assignGenForm.deadline} • Max Marks: ${assignResult.maxMarks} (Official PDF Generated)`,
+        data: fullAssignment,
       });
     } catch (err) {
       console.error('Assignment Generation Error:', err);
@@ -316,8 +331,16 @@ export default function TeacherBotMarket() {
 
   const publishAssignmentToPortal = () => {
     if (!generatedAssignment) return;
-    createAssignment(generatedAssignment);
-    alert(`Successfully published "${generatedAssignment.title}" to the Student Assignment Hub!`);
+    let finalAssign = { ...generatedAssignment };
+    if (!finalAssign.attachment) {
+      try {
+        finalAssign.attachment = generateAssignmentPdf(finalAssign);
+      } catch (err) {
+        console.warn('PDF auto-generation on publish:', err);
+      }
+    }
+    createAssignment(finalAssign);
+    alert(`Successfully published "${finalAssign.title}" with Official Question PDF to the Student Assignment Panel! Students can now download the PDF and upload their solutions.`);
   };
 
   // --- 3. AI CODE TEST GENERATION HANDLER ---
@@ -1082,20 +1105,66 @@ export default function TeacherBotMarket() {
             <div className="mt-6 p-6 rounded-3xl bg-slate-950/80 border border-purple-500/30 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
                 <div>
-                  <h4 className="text-base font-bold text-white">{generatedAssignment.title}</h4>
-                  <p className="text-xs text-slate-400">
-                    Deadline: {generatedAssignment.deadline}
+                  <h4 className="text-base font-bold text-white flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
+                    <span>{generatedAssignment.title}</span>
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Deadline: {generatedAssignment.deadline ? new Date(generatedAssignment.deadline).toLocaleString() : 'N/A'} • {generatedAssignment.questions?.length || 0} Problems • {generatedAssignment.totalMarks || 45} Marks
                   </p>
                 </div>
 
-                <button
-                  onClick={publishAssignmentToPortal}
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg flex items-center gap-1.5"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Publish to Student Assignment Panel</span>
-                </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => downloadAssignmentPdf(generatedAssignment)}
+                    className="px-4 py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white border border-purple-500/40 text-xs font-bold shadow-md flex items-center gap-1.5 transition"
+                    title="Download Official Indira University Coursework Brief PDF"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download Assignment PDF</span>
+                  </button>
+
+                  <button
+                    onClick={publishAssignmentToPortal}
+                    className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 flex items-center gap-1.5 transition"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Publish to Student Assignment Panel</span>
+                  </button>
+                </div>
               </div>
+
+              {/* Generated PDF Attachment Badge */}
+              {generatedAssignment.attachment && (
+                <div className="p-3 rounded-2xl bg-gradient-to-r from-purple-950/40 via-indigo-950/30 to-slate-900 border border-purple-500/30 flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="p-2 rounded-xl bg-purple-500/20 text-purple-300 shrink-0">
+                      <FileText className="w-4 h-4 text-purple-400" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-white truncate flex items-center gap-2">
+                        <span className="truncate">{generatedAssignment.attachment.name}</span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] border border-emerald-500/30 font-mono shrink-0">
+                          PDF Attached
+                        </span>
+                      </p>
+                      <p className="text-[11px] text-purple-300/80 font-mono">
+                        Official Academic Question Brief ({generatedAssignment.attachment.size}) • Automatically dispatched to students upon publishing
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => downloadAssignmentPdf(generatedAssignment)}
+                    className="px-3 py-1.5 rounded-xl bg-purple-600/50 hover:bg-purple-500 text-white font-semibold text-xs flex items-center gap-1 shrink-0 transition"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download</span>
+                  </button>
+                </div>
+              )}
 
               <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-xs text-slate-300 space-y-3 leading-relaxed">
                 <div>

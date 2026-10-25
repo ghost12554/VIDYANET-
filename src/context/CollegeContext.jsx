@@ -1053,15 +1053,16 @@ export function CollegeProvider({ children }) {
     const newAssign = {
       id: `assign-${Date.now()}`,
       title: assignData.title,
-      subject: assignData.subject,
+      subject: assignData.subject || 'Information Technology',
       department: assignData.department || 'Information Technology (AIML)',
-      assignedBy: currentUser?.name || 'Prof. Divya C',
+      assignedBy: currentUser?.name || 'Prof. Sarita Byagar',
       deadline: assignData.deadline,
       allowLateSubmission: assignData.allowLateSubmission !== undefined ? assignData.allowLateSubmission : true,
       maxMarks: assignData.maxMarks || 50,
       description: assignData.description,
       rubric: assignData.rubric || 'Accuracy (60%), Approach (20%), Neatness (20%)',
       attachment: assignData.attachment || null,
+      questions: assignData.questions || assignData.problems || [],
       submissions: [],
     };
     setAssignments((prev) => [newAssign, ...prev]);

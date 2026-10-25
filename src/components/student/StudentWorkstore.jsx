@@ -43,6 +43,7 @@ import {
   downloadAttachment,
   getFileBadgeColor,
 } from '../../utils/fileAttachmentUtils';
+import { downloadAssignmentPdf } from '../../utils/assignmentPdfGenerator';
 
 export default function StudentWorkstore() {
   const {
@@ -569,27 +570,63 @@ export default function StudentWorkstore() {
                         <strong className="text-slate-300">Grading Rubric:</strong> {assign.rubric}
                       </div>
 
-                      {/* Teacher's Attached Assignment Question File */}
-                      {assign.attachment && (
-                        <div className="mt-3 p-3 rounded-xl bg-purple-500/10 border border-purple-500/30 flex flex-wrap items-center justify-between gap-3">
-                          <div className="flex items-center gap-2">
-                            <Paperclip className="w-4 h-4 text-purple-400 shrink-0" />
+                      {/* Teacher's Attached Assignment Question File (Official PDF) */}
+                      {(assign.attachment || (assign.questions && assign.questions.length > 0)) && (
+                        <div className="mt-3 p-3 rounded-2xl bg-gradient-to-r from-purple-950/40 via-indigo-950/30 to-slate-900 border border-purple-500/30 flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="p-2 rounded-xl bg-purple-500/20 text-purple-300 shrink-0">
+                              <FileText className="w-4 h-4 text-purple-400" />
+                            </div>
                             <div>
-                              <p className="text-xs font-semibold text-white">Teacher's Question File</p>
+                              <p className="text-xs font-semibold text-white flex items-center gap-2">
+                                <span>Official Assignment Question Paper & Specification</span>
+                                <span className="px-1.5 py-0.2 rounded-full bg-purple-500/30 text-purple-200 text-[9px] font-mono border border-purple-500/40">
+                                  PDF
+                                </span>
+                              </p>
                               <p className="text-[11px] font-mono text-purple-300">
-                                {assign.attachment.name} ({assign.attachment.size})
+                                {assign.attachment?.name || `${(assign.title || 'Assignment').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 35)}_Question_Brief.pdf`} {assign.attachment?.size ? `(${assign.attachment.size})` : ''}
                               </p>
                             </div>
                           </div>
                           <button
                             type="button"
-                            onClick={() => downloadAttachment(assign.attachment)}
+                            onClick={() => {
+                              if (assign.attachment) {
+                                downloadAttachment(assign.attachment);
+                              } else {
+                                downloadAssignmentPdf(assign);
+                              }
+                            }}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-md transition"
-                            title="Download Assignment Brief"
+                            title="Download Official Assignment Brief PDF"
                           >
                             <Download className="w-3.5 h-3.5" />
-                            <span>Download Brief</span>
+                            <span>Download Question PDF</span>
                           </button>
+                        </div>
+                      )}
+
+                      {/* Display problem statements if present */}
+                      {assign.questions && assign.questions.length > 0 && (
+                        <div className="mt-3 p-3 rounded-2xl bg-slate-900/90 border border-slate-700/60 space-y-2">
+                          <p className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                            <Layers className="w-3.5 h-3.5" />
+                            <span>Assignment Problems ({assign.questions.length} Problem Sets):</span>
+                          </p>
+                          <div className="space-y-2 mt-1.5">
+                            {assign.questions.map((q, qIdx) => (
+                              <div key={qIdx} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs">
+                                <p className="font-semibold text-white">Problem #{qIdx + 1}: {q.title || `Task ${qIdx + 1}`}</p>
+                                <p className="text-slate-300 text-[11px] mt-0.5 leading-relaxed">{q.problem || q.description || q}</p>
+                                {q.deliverables && (
+                                  <p className="text-indigo-400 text-[10px] mt-1 font-mono">
+                                    Deliverable: {q.deliverables}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
 
@@ -690,12 +727,32 @@ export default function StudentWorkstore() {
           {selectedAssignment && (
             <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl">
-                <h4 className="text-base font-bold text-white">
-                  Upload Solution: {selectedAssignment.title}
-                </h4>
-                <p className="text-xs text-slate-400 mt-1">
-                  Subject: {selectedAssignment.subject} • Dept: {selectedAssignment.department}
-                </p>
+                <div className="flex items-start justify-between pb-3 border-b border-slate-800 gap-2">
+                  <div>
+                    <h4 className="text-base font-bold text-white">
+                      Upload Solution: {selectedAssignment.title}
+                    </h4>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Subject: {selectedAssignment.subject} • Dept: {selectedAssignment.department}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedAssignment.attachment) {
+                        downloadAttachment(selectedAssignment.attachment);
+                      } else {
+                        downloadAssignmentPdf(selectedAssignment);
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white border border-purple-500/40 text-xs font-semibold flex items-center gap-1.5 transition shrink-0"
+                    title="Download Official Assignment Brief PDF"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Question PDF</span>
+                  </button>
+                </div>
 
                 {new Date(selectedAssignment.deadline) < new Date() && (
                   <div className="mt-3 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300">
@@ -705,23 +762,30 @@ export default function StudentWorkstore() {
 
                 <form onSubmit={handleAssignmentSubmit} className="mt-4 space-y-4">
                   <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1">
-                      Attach Solution File or Cloud Link
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                      Attach Solution File (PDF, Document, Code, or ZIP)
                     </label>
 
                     <input
                       type="file"
                       ref={assignFileInputRef}
                       onChange={handleAssignmentFilePick}
+                      accept=".pdf,.docx,.doc,.zip,.py,.ipynb,.txt,.csv"
                       className="hidden"
                     />
 
                     {assignmentAttachment ? (
-                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950 border border-emerald-500/40 mb-2">
-                        <div className="flex items-center gap-2 truncate">
-                          <Paperclip className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                          <span className="text-white text-xs font-medium truncate">{assignmentAttachment.name}</span>
-                          <span className="text-[10px] text-slate-400 font-mono">({assignmentAttachment.size})</span>
+                      <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-950 border border-emerald-500/40 mb-2">
+                        <div className="flex items-center gap-2.5 truncate">
+                          <div className="p-1.5 rounded-xl bg-emerald-500/20 text-emerald-400 shrink-0">
+                            <FileText className="w-4 h-4" />
+                          </div>
+                          <div className="truncate">
+                            <p className="text-white text-xs font-medium truncate">{assignmentAttachment.name}</p>
+                            <p className="text-[10px] text-emerald-400 font-mono">
+                              File Ready ({assignmentAttachment.size})
+                            </p>
+                          </div>
                         </div>
                         <button
                           type="button"
@@ -729,29 +793,38 @@ export default function StudentWorkstore() {
                             setAssignmentAttachment(null);
                             setAssignmentFile('');
                           }}
-                          className="p-1 rounded text-slate-400 hover:text-rose-400"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition"
+                          title="Remove file"
                         >
-                          <X className="w-3.5 h-3.5" />
+                          <X className="w-4 h-4" />
                         </button>
                       </div>
                     ) : (
                       <button
                         type="button"
                         onClick={() => assignFileInputRef.current?.click()}
-                        className="w-full mb-2 border-2 border-dashed border-indigo-500/40 hover:border-indigo-400 bg-indigo-500/5 hover:bg-indigo-500/10 rounded-xl p-2.5 text-center text-xs text-indigo-300 font-semibold flex items-center justify-center gap-2 transition"
+                        className="w-full mb-2 border-2 border-dashed border-indigo-500/40 hover:border-indigo-400 bg-indigo-500/5 hover:bg-indigo-500/10 rounded-2xl p-4 text-center text-xs text-indigo-300 font-semibold flex flex-col items-center justify-center gap-1.5 transition group"
                       >
-                        <Paperclip className="w-4 h-4" />
-                        <span>Browse & Attach File from Computer</span>
+                        <div className="p-2.5 rounded-xl bg-indigo-500/20 group-hover:bg-indigo-500/30 transition">
+                          <Upload className="w-5 h-5 text-indigo-400" />
+                        </div>
+                        <span className="font-bold text-white text-xs">Choose or Drop Solution PDF / Code File</span>
+                        <span className="text-[11px] text-slate-400 font-normal">Supports PDF, DOCX, ZIP, Python (.py, .ipynb) up to 15MB</span>
                       </button>
                     )}
 
-                    <input
-                      type="text"
-                      placeholder="Or enter URL / file name (e.g. https://github.com/...)"
-                      value={assignmentFile}
-                      onChange={(e) => setAssignmentFile(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-                    />
+                    <div className="mt-2">
+                      <label className="block text-[11px] font-medium text-slate-400 mb-1">
+                        Or provide submission repository URL / Cloud drive link
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="https://github.com/... or Google Drive URL"
+                        value={assignmentFile}
+                        onChange={(e) => setAssignmentFile(e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
                   </div>
 
                   <div>
