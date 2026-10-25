@@ -376,57 +376,134 @@ export function generateNotesPdf(note) {
       // Clean the line of raw markdown symbols and LaTeX
       const cleanLine = cleanFormatting(trimmed);
 
-      // Level 1 / Major Section Header (e.g. "1. Executive Summary", "2. Theoretical Invariants", "### 1.", "# ")
-      const isMajorSection =
-        trimmed.startsWith('# ') ||
-        trimmed.startsWith('### 1.') ||
-        trimmed.startsWith('### 2.') ||
-        trimmed.startsWith('### 3.') ||
-        trimmed.startsWith('### 4.') ||
-        trimmed.startsWith('### 5.') ||
-        trimmed.startsWith('### 6.') ||
-        /^\d+\.\s+[A-Z]/.test(cleanLine);
+      // Markdown Table Detection & Structured Rendering
+      if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+        const tableLines = [];
+        let j = i;
+        while (j < lines.length && lines[j].trim().startsWith('|') && lines[j].trim().endsWith('|')) {
+          tableLines.push(lines[j].trim());
+          j++;
+        }
+        i = j - 1; // Advance loop past table
 
-      if (isMajorSection && !cleanLine.toLowerCase().startsWith('q:')) {
-        // High orphan protection: require at least 32mm left on the page
-        checkPageBreak(32);
+        // Parse cells and filter out delimiter row (| :--- | :--- |)
+        const parsedRows = tableLines
+          .map((rowStr) =>
+            rowStr
+              .split('|')
+              .slice(1, -1)
+              .map((c) => cleanFormatting(c.trim()))
+          )
+          .filter((cells) => !cells.every((c) => /^[-:\s]+$/.test(c)));
 
-        doc.setFillColor(241, 245, 249);
-        doc.setDrawColor(203, 213, 225);
-        doc.roundedRect(margin, cursorY, contentWidth, 7.5, 1.5, 1.5, 'FD');
+        if (parsedRows.length > 0) {
+          const numCols = Math.max(...parsedRows.map((r) => r.length));
+          const colWidth = contentWidth / numCols;
 
-        // Colored pill
-        doc.setFillColor(79, 70, 229);
-        doc.roundedRect(margin, cursorY, 2.5, 7.5, 1, 1, 'F');
+          checkPageBreak(Math.min(parsedRows.length * 6 + 10, 35));
 
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9.5);
-        doc.setTextColor(30, 27, 75); // Deep Indigo
-        doc.text(cleanLine, margin + 5, cursorY + 5.2);
+          // 1. Table Header (Row 0)
+          const headers = parsedRows[0];
+          doc.setFillColor(24, 28, 62); // #181C3E Deep Navy
+          doc.rect(margin, cursorY, contentWidth, 6.5, 'F');
 
-        cursorY += 11;
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(7.2);
+          doc.setTextColor(255, 255, 255);
+
+          for (let c = 0; c < numCols; c++) {
+            const cellText = headers[c] || '';
+            const cellX = margin + c * colWidth + 2;
+            doc.text(cellText, cellX, cursorY + 4.5);
+          }
+          cursorY += 6.5;
+
+          // 2. Data Rows
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7);
+          for (let rIdx = 1; rIdx < parsedRows.length; rIdx++) {
+            const rowData = parsedRows[rIdx];
+            const maxLinesInRow = Math.max(
+              1,
+              ...rowData.map((cell) => doc.splitTextToSize(cell, colWidth - 4).length)
+            );
+            const rowH = Math.max(5.5, maxLinesInRow * 3.4 + 2);
+
+            checkPageBreak(rowH + 2);
+
+            // Alternating zebra striping
+            const isEven = rIdx % 2 === 0;
+            doc.setFillColor(isEven ? 248 : 255, isEven ? 250 : 255, isEven ? 252 : 255);
+            doc.setDrawColor(226, 232, 240);
+            doc.rect(margin, cursorY, contentWidth, rowH, 'FD');
+
+            doc.setTextColor(51, 65, 85);
+            for (let c = 0; c < numCols; c++) {
+              const cellText = rowData[c] || '';
+              const splitCell = doc.splitTextToSize(cellText, colWidth - 4);
+              const cellX = margin + c * colWidth + 2;
+              doc.text(splitCell, cellX, cursorY + 3.8);
+            }
+            cursorY += rowH;
+          }
+          cursorY += 4;
+        }
         continue;
       }
 
-      // Sub-headings (e.g. "#### A. First Normal Form", "### 2. Theoretical Invariants", "## ")
-      const isSubHeading =
-        trimmed.startsWith('#### ') ||
-        trimmed.startsWith('### ') ||
-        trimmed.startsWith('## ') ||
-        /^[A-D]\.\s+/.test(cleanLine);
+      // Check for Markdown Headings (# , ## , ### , #### )
+      const isMarkdownHeading = trimmed.startsWith('#');
+      const isExplicitSectionNum = /^[1-6]\.\s+(Executive Summary|Introduction|Core|Architecture|Operations|Complexity|Analysis|Exam|High-Yield)/i.test(
+        cleanLine
+      );
 
-      if (isSubHeading) {
-        // Require at least 22mm clearance so subheadings aren't orphaned
-        checkPageBreak(22);
+      if ((isMarkdownHeading || isExplicitSectionNum) && !cleanLine.toLowerCase().includes('q:')) {
+        // Strip any leading # characters so raw "### " NEVER prints inside the box!
+        const headerTitle = cleanLine.replace(/^#+\s*/, '').trim();
 
-        const subText = cleanFormatting(trimmed.replace(/^#+\s*/, ''));
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8.8);
-        doc.setTextColor(67, 56, 202); // Rich Indigo
-        const splitSub = doc.splitTextToSize(subText, contentWidth - 4);
-        doc.text(splitSub, margin + 2, cursorY + 3.5);
-        cursorY += splitSub.length * 4.2 + 2;
-        continue;
+        // Level 1 / Major Section Header (Major modules get the highlighted section bar)
+        const isMajorSection =
+          trimmed.startsWith('# ') ||
+          trimmed.startsWith('## ') ||
+          trimmed.startsWith('### 1') ||
+          trimmed.startsWith('### 2') ||
+          trimmed.startsWith('### 3') ||
+          trimmed.startsWith('### 4') ||
+          trimmed.startsWith('### 5') ||
+          trimmed.startsWith('### 6') ||
+          isExplicitSectionNum;
+
+        if (isMajorSection) {
+          // High orphan protection: require at least 30mm left on the page
+          checkPageBreak(30);
+
+          doc.setFillColor(241, 245, 249);
+          doc.setDrawColor(203, 213, 225);
+          doc.roundedRect(margin, cursorY, contentWidth, 7.5, 1.5, 1.5, 'FD');
+
+          // Left colored pill
+          doc.setFillColor(79, 70, 229);
+          doc.roundedRect(margin, cursorY, 2.5, 7.5, 1, 1, 'F');
+
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(9.5);
+          doc.setTextColor(30, 27, 75); // Deep Indigo
+          doc.text(headerTitle, margin + 5, cursorY + 5.2);
+
+          cursorY += 11;
+          continue;
+        } else {
+          // Sub-heading (e.g. "A. First Normal Form", "B. Second Normal Form")
+          checkPageBreak(20);
+
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8.8);
+          doc.setTextColor(67, 56, 202); // Rich Indigo
+          const splitSub = doc.splitTextToSize(headerTitle, contentWidth - 4);
+          doc.text(splitSub, margin + 2, cursorY + 3.5);
+          cursorY += splitSub.length * 4.2 + 2;
+          continue;
+        }
       }
 
       // Exam Question Item (e.g. "1. Q: Why does 3NF allow...", "Q: ...")
