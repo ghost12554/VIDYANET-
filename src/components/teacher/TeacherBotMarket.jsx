@@ -10,6 +10,7 @@ import {
 } from '../../services/aiGeneratorService';
 import { readFileAsAttachment, downloadAttachment, formatFileSize } from '../../utils/fileAttachmentUtils';
 import { generateAssignmentPdf, downloadAssignmentPdf } from '../../utils/assignmentPdfGenerator';
+import { generateNotesPdf, downloadNotesPdf } from '../../utils/notesPdfGenerator';
 import {
   Bot,
   Sparkles,
@@ -42,6 +43,8 @@ import {
   UserX,
   Paperclip,
   CheckCheck,
+  Edit3,
+  BookOpen,
 } from 'lucide-react';
 
 export default function TeacherBotMarket() {
@@ -107,12 +110,17 @@ export default function TeacherBotMarket() {
   // 4. NOTES GENERATOR STATE
   const [notesGenForm, setNotesGenForm] = useState({
     topic: '',
-    subject: 'Data Structures & Algorithms',
-    focusArea: 'Comprehensive explanation with key definitions, formulas, memory layout diagrams, and high-yield exam takeaways.',
+    subject: 'Relational Database Management Systems',
+    focusArea: 'Comprehensive academic lecture notes: Explain update/delete anomalies, Armstrong axioms for functional dependencies, step-by-step normal form reduction from 1NF to BCNF with concrete violations and schema decompositions, SQL DDL schema, and high-yield viva-voce questions.',
     referenceDoc: null,
   });
   const [generatedNotes, setGeneratedNotes] = useState(null);
   const [isGeneratingNotes, setIsGeneratingNotes] = useState(false);
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [editableNotesTitle, setEditableNotesTitle] = useState('');
+  const [editableNotesSubject, setEditableNotesSubject] = useState('');
+  const [editableNotesSummary, setEditableNotesSummary] = useState('');
+  const [editableNotesContent, setEditableNotesContent] = useState('');
 
   // 5. PPT SLIDE GENERATOR STATE
   const [pptForm, setPptForm] = useState({
@@ -401,9 +409,9 @@ export default function TeacherBotMarket() {
   // --- 4. AI NOTES GENERATION HANDLER ---
   const handleLoadNotesSample = () => {
     setNotesGenForm({
-      topic: 'Relational Normalization (1NF, 2NF, 3NF, BCNF) & Functional Dependencies',
+      topic: 'Relational Normalization (1NF, 2NF, 3NF, BCNF) & Dependency Theory',
       subject: 'Relational Database Management Systems',
-      focusArea: 'Anomalies (Insertion, Update, Deletion), Armstrong axioms for functional dependencies, decomposition algorithms, and lossless-join conditions.',
+      focusArea: 'Comprehensive academic lecture notes: Explain update/delete anomalies, Armstrong axioms for functional dependencies, step-by-step normal form reduction from 1NF to BCNF with concrete violations and schema decompositions, SQL DDL schema, and high-yield viva-voce questions.',
       referenceDoc: {
         id: 'sample-notes-doc',
         name: 'Database_Normalization_Syllabus.pdf',
@@ -415,7 +423,7 @@ export default function TeacherBotMarket() {
   const handleGenerateNotes = async (e) => {
     e.preventDefault();
     if (!notesGenForm.topic.trim()) {
-      alert('Topic is mandatory.');
+      alert('Topic / Chapter Name is mandatory.');
       return;
     }
     setIsGeneratingNotes(true);
@@ -428,13 +436,19 @@ export default function TeacherBotMarket() {
         referenceText: notesGenForm.referenceDoc?.name || '',
       });
 
-      setGeneratedNotes({ ...notesResult, _generatedAt: Date.now() });
+      const enriched = { ...notesResult, _generatedAt: Date.now() };
+      setGeneratedNotes(enriched);
+      setEditableNotesTitle(enriched.title);
+      setEditableNotesSubject(enriched.subject);
+      setEditableNotesSummary(enriched.summary || enriched.description || '');
+      setEditableNotesContent(enriched.content || '');
+      setIsEditingNotes(false);
 
       saveBotHistoryItem({
         panel: 'Notes Generator',
-        title: notesResult.title,
+        title: enriched.title,
         details: `Study notes on "${notesGenForm.topic}" for ${notesGenForm.subject}`,
-        data: notesResult,
+        data: enriched,
       });
     } catch (err) {
       console.error('Notes Generation Error:', err);
@@ -444,19 +458,69 @@ export default function TeacherBotMarket() {
     }
   };
 
+  const handleSaveEditedNotes = () => {
+    if (!generatedNotes) return;
+    const updated = {
+      ...generatedNotes,
+      title: editableNotesTitle.trim() || generatedNotes.title,
+      subject: editableNotesSubject.trim() || generatedNotes.subject,
+      summary: editableNotesSummary.trim() || generatedNotes.summary,
+      description: editableNotesSummary.trim() || generatedNotes.description,
+      content: editableNotesContent.trim() || generatedNotes.content,
+    };
+    setGeneratedNotes(updated);
+    setIsEditingNotes(false);
+  };
+
+  const handleDownloadNotesPdf = () => {
+    if (!generatedNotes) return;
+    const activeNote = isEditingNotes
+      ? {
+          ...generatedNotes,
+          title: editableNotesTitle.trim() || generatedNotes.title,
+          subject: editableNotesSubject.trim() || generatedNotes.subject,
+          summary: editableNotesSummary.trim() || generatedNotes.summary,
+          description: editableNotesSummary.trim() || generatedNotes.description,
+          content: editableNotesContent.trim() || generatedNotes.content,
+        }
+      : generatedNotes;
+    downloadNotesPdf(activeNote);
+  };
+
   const publishNotesToPortal = () => {
     if (!generatedNotes) return;
+    const activeNote = isEditingNotes
+      ? {
+          ...generatedNotes,
+          title: editableNotesTitle.trim() || generatedNotes.title,
+          subject: editableNotesSubject.trim() || generatedNotes.subject,
+          summary: editableNotesSummary.trim() || generatedNotes.summary,
+          description: editableNotesSummary.trim() || generatedNotes.description,
+          content: editableNotesContent.trim() || generatedNotes.content,
+        }
+      : generatedNotes;
+
+    const pdfAttachment = generateNotesPdf(activeNote);
+
     addNote({
-      title: generatedNotes.title,
-      subject: generatedNotes.subject,
-      description: generatedNotes.description,
-      content: generatedNotes.content,
-      tags: generatedNotes.tags,
-      fileSize: generatedNotes.fileSize,
+      title: activeNote.title,
+      subject: activeNote.subject,
+      summary: activeNote.summary || activeNote.description,
+      description: activeNote.description || activeNote.summary,
+      content: activeNote.content,
+      tags: activeNote.tags || [activeNote.subject, 'Lecture Notes'],
+      fileSize: pdfAttachment?.size || activeNote.fileSize || '1.8 MB',
+      fileName: pdfAttachment?.name || `${(activeNote.title || 'Notes').replace(/\s+/g, '_')}.pdf`,
+      attachment: pdfAttachment,
       date: new Date().toISOString().split('T')[0],
       department: attendanceDept,
+      keyTakeaways: activeNote.keyTakeaways || [],
+      author: 'Prof. Sarita Byagar (HOD - AIML)',
     });
-    alert(`Published "${generatedNotes.title}" to Student Notes Workstore!`);
+
+    setGeneratedNotes(activeNote);
+    setIsEditingNotes(false);
+    alert(`Published "${activeNote.title}" with downloadable official PDF Handout to Student Notes Workstore!`);
   };
 
   // --- 5. AI PPT SLIDES GENERATOR ---
@@ -1547,12 +1611,12 @@ export default function TeacherBotMarket() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block font-semibold text-slate-300 mb-1">
-                  Topic / Chapter Name <span className="text-rose-400 font-bold">* (Mandatory)</span>
+                  Topic / Chapter / Unit Name <span className="text-rose-400 font-bold">* (Mandatory)</span>
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Relational Normalization (1NF, 2NF, 3NF, BCNF)"
+                  placeholder="e.g. Relational Normalization (1NF, 2NF, 3NF, BCNF) & Dependency Theory"
                   value={notesGenForm.topic}
                   onChange={(e) => setNotesGenForm({ ...notesGenForm, topic: e.target.value })}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
@@ -1565,6 +1629,7 @@ export default function TeacherBotMarket() {
                 </label>
                 <input
                   type="text"
+                  placeholder="e.g. Relational Database Management Systems"
                   value={notesGenForm.subject}
                   onChange={(e) => setNotesGenForm({ ...notesGenForm, subject: e.target.value })}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
@@ -1573,15 +1638,56 @@ export default function TeacherBotMarket() {
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-300 mb-1">
-                Custom Focus / Key Points to Emphasize
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="font-semibold text-slate-300">
+                  Pedagogical & Formatting Instructions Prompt
+                </label>
+                <span className="text-[11px] text-slate-400">Click a preset to insert instructions</span>
+              </div>
+
               <textarea
                 rows={3}
+                placeholder="Specify your desired note style, structure, depth, formulas, derivations, code blocks, or exam focus points..."
                 value={notesGenForm.focusArea}
                 onChange={(e) => setNotesGenForm({ ...notesGenForm, focusArea: e.target.value })}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 leading-relaxed"
               />
+
+              {/* Quick Preset Buttons */}
+              <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                {[
+                  {
+                    label: 'Theory & Mathematical Derivations',
+                    prompt: 'Emphasize formal mathematical theory, Armstrong axioms, invariants, step-by-step normal form reduction, and rigorous complexity bounds.',
+                  },
+                  {
+                    label: 'Code & Algorithmic Implementation',
+                    prompt: 'Provide complete Python/SQL reference implementation, data structures, state machines, and practical engineering trade-offs.',
+                  },
+                  {
+                    label: 'High-Yield Exam & Viva Checklist',
+                    prompt: 'Include a comprehensive summary, key definitions, 5 high-yield exam questions with model answers, and viva-voce talking points.',
+                  },
+                  {
+                    label: 'Concise Lecture Handout',
+                    prompt: 'Create clean bullet points with bold keywords, comparison tables, visual architectural flow, and real-world system use cases.',
+                  },
+                ].map((preset, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() =>
+                      setNotesGenForm((prev) => ({
+                        ...prev,
+                        focusArea: prev.focusArea ? `${prev.focusArea}\n${preset.prompt}` : preset.prompt,
+                      }))
+                    }
+                    className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-[11px] text-slate-300 hover:text-white transition"
+                  >
+                    + {preset.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* File Upload */}
@@ -1622,48 +1728,273 @@ export default function TeacherBotMarket() {
               <button
                 type="submit"
                 disabled={isGeneratingNotes}
-                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold shadow-lg shadow-purple-600/30 flex items-center gap-2"
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold shadow-lg shadow-purple-600/30 flex items-center gap-2 transition"
               >
                 {isGeneratingNotes ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>NVIDIA LLaMA 3.3 Synthesizing Notes...</span>
+                    <span>Synthesizing Academic Notes...</span>
                   </>
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4" />
-                    <span>Generate Notes</span>
+                    <span>Generate Academic Notes</span>
                   </>
                 )}
               </button>
             </div>
           </form>
 
+          {/* GENERATED NOTES DISPLAY & EDIT PANEL */}
           {generatedNotes && (
-            <div className="mt-6 p-6 rounded-3xl bg-slate-950/80 border border-purple-500/30 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
+            <div
+              key={`notes-${generatedNotes._generatedAt || ''}`}
+              className="mt-6 p-6 rounded-3xl bg-slate-950/90 border border-purple-500/40 shadow-2xl space-y-5"
+            >
+              {/* Header Action Bar */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-slate-800 gap-3">
                 <div>
-                  <h4 className="text-base font-bold text-white">{generatedNotes.title}</h4>
-                  <p className="text-xs text-slate-400">Subject: {generatedNotes.subject} • Est. Size: {generatedNotes.fileSize}</p>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold">
+                      Verified Lecture Handout
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700/80 text-[10px] text-slate-400">
+                      Prof. Sarita Byagar (HOD - AIML)
+                    </span>
+                  </div>
+                  <h4 className="text-base font-bold text-white mt-1">
+                    {isEditingNotes ? editableNotesTitle || generatedNotes.title : generatedNotes.title}
+                  </h4>
+                  <p className="text-xs text-slate-400">
+                    Subject: {isEditingNotes ? editableNotesSubject || generatedNotes.subject : generatedNotes.subject} • Est. Read Time: {generatedNotes.readTime || '12-15 mins'}
+                  </p>
                 </div>
 
-                <button
-                  onClick={publishNotesToPortal}
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg flex items-center gap-1.5"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Publish to Student Notes Workstore</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Edit Toggle */}
+                  <button
+                    onClick={() => {
+                      if (isEditingNotes) {
+                        handleSaveEditedNotes();
+                      } else {
+                        setIsEditingNotes(true);
+                      }
+                    }}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border ${
+                      isEditingNotes
+                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400 shadow-md'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                    }`}
+                  >
+                    {isEditingNotes ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Save Changes</span>
+                      </>
+                    ) : (
+                      <>
+                        <Edit3 className="w-3.5 h-3.5 text-purple-400" />
+                        <span>Edit Notes Content</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Download PDF Handout */}
+                  <button
+                    onClick={handleDownloadNotesPdf}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white border border-indigo-500/30 text-xs font-bold shadow-md flex items-center gap-1.5 transition"
+                    title="Download Official PDF Study Handout"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download PDF</span>
+                  </button>
+
+                  {/* Publish to Student Notes Portal */}
+                  <button
+                    onClick={publishNotesToPortal}
+                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-900/30 flex items-center gap-1.5 transition"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Publish to Student Notes Portal</span>
+                  </button>
+                </div>
               </div>
 
-              <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-xs text-slate-300 space-y-3 leading-relaxed whitespace-pre-wrap">
-                <p>{generatedNotes.description}</p>
-                {generatedNotes.content && (
-                  <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 font-mono text-indigo-300">
-                    {generatedNotes.content}
+              {/* EDIT MODE */}
+              {isEditingNotes ? (
+                <div className="space-y-4 p-5 rounded-2xl bg-slate-900/90 border border-purple-500/30 text-xs">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                    <span className="font-bold text-white flex items-center gap-2">
+                      <Edit3 className="w-4 h-4 text-purple-400" />
+                      Teacher Live Content Editor (Make changes before publishing or downloading)
+                    </span>
+                    <button
+                      onClick={() => setIsEditingNotes(false)}
+                      className="text-slate-400 hover:text-white text-xs"
+                    >
+                      Cancel Edit
+                    </button>
                   </div>
-                )}
-              </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold text-slate-300 mb-1">Handout Title</label>
+                      <input
+                        type="text"
+                        value={editableNotesTitle}
+                        onChange={(e) => setEditableNotesTitle(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-slate-300 mb-1">Subject / Course</label>
+                      <input
+                        type="text"
+                        value={editableNotesSubject}
+                        onChange={(e) => setEditableNotesSubject(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-300 mb-1">Executive Summary / Learning Objectives</label>
+                    <textarea
+                      rows={2}
+                      value={editableNotesSummary}
+                      onChange={(e) => setEditableNotesSummary(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="font-semibold text-slate-300">Complete Lecture Notes Content (Markdown)</label>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditableNotesContent((prev) => `${prev}\n\n### New Section Heading\nDetailed explanation...`)}
+                          className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 hover:text-white text-[11px]"
+                        >
+                          + Heading
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditableNotesContent((prev) => `${prev}\n- Key bullet point concept`)}
+                          className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 hover:text-white text-[11px]"
+                        >
+                          + Bullet
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditableNotesContent((prev) => `${prev}\n\n\`\`\`python\n# Code snippet\ndef example():\n    return True\n\`\`\``)}
+                          className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 hover:text-white text-[11px]"
+                        >
+                          + Code
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditableNotesContent((prev) => `${prev}\n\n### Exam Review Question\n1. **Q: Question text?**\n   - *Model Answer*: Answer details.`)}
+                          className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 hover:text-white text-[11px]"
+                        >
+                          + Exam Question
+                        </button>
+                      </div>
+                    </div>
+                    <textarea
+                      rows={16}
+                      value={editableNotesContent}
+                      onChange={(e) => setEditableNotesContent(e.target.value)}
+                      className="w-full bg-slate-950 font-mono text-xs text-emerald-300 p-4 rounded-2xl border border-slate-700 focus:outline-none focus:border-purple-500 shadow-inner leading-relaxed"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingNotes(false)}
+                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveEditedNotes}
+                      className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md"
+                    >
+                      Save Changes & Return to Preview
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* CLEAN FORMATTED PREVIEW */
+                <div className="space-y-4">
+                  {/* Executive Overview Box */}
+                  {(generatedNotes.summary || generatedNotes.description) && (
+                    <div className="p-4 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 text-xs space-y-1.5">
+                      <span className="font-bold text-indigo-300 flex items-center gap-1.5 uppercase text-[10px] tracking-wider">
+                        <BookOpen className="w-3.5 h-3.5" />
+                        Executive Overview & Learning Objectives
+                      </span>
+                      <p className="text-slate-300 leading-relaxed">
+                        {generatedNotes.summary || generatedNotes.description}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* High-Yield Exam Checklist Box */}
+                  {generatedNotes.keyTakeaways && generatedNotes.keyTakeaways.length > 0 && (
+                    <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs space-y-2">
+                      <span className="font-bold text-amber-300 flex items-center gap-1.5 uppercase text-[10px] tracking-wider">
+                        <Award className="w-3.5 h-3.5" />
+                        High-Yield Exam Review & Viva-Voce Checklist
+                      </span>
+                      <ul className="space-y-1">
+                        {generatedNotes.keyTakeaways.map((item, idx) => (
+                          <li key={idx} className="flex items-start gap-2 text-slate-300">
+                            <span className="text-amber-400 font-bold">•</span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Formatted Notes Body */}
+                  <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 text-xs text-slate-300 space-y-4 leading-relaxed font-sans select-text">
+                    {generatedNotes.content ? (
+                      <div className="whitespace-pre-wrap font-sans text-slate-300 leading-relaxed">
+                        {generatedNotes.content}
+                      </div>
+                    ) : (
+                      <p className="text-slate-500">No content available.</p>
+                    )}
+                  </div>
+
+                  {/* Bottom Footer Actions */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-800">
+                    <span className="text-xs text-slate-400">
+                      All modifications will be permanently retained in the downloadable PDF and student workstore.
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleDownloadNotesPdf}
+                        className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 text-xs font-bold border border-indigo-500/30 flex items-center gap-1.5 transition"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Download PDF</span>
+                      </button>
+                      <button
+                        onClick={publishNotesToPortal}
+                        className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-lg flex items-center gap-1.5 transition"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Publish to Student Notes Portal</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

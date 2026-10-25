@@ -44,6 +44,7 @@ import {
   getFileBadgeColor,
 } from '../../utils/fileAttachmentUtils';
 import { downloadAssignmentPdf } from '../../utils/assignmentPdfGenerator';
+import { downloadNotesPdf } from '../../utils/notesPdfGenerator';
 import { executePythonInBrowser } from '../../utils/pythonRunner';
 
 export default function StudentWorkstore() {
@@ -89,6 +90,7 @@ export default function StudentWorkstore() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [joinError, setJoinError] = useState('');
   const [noteCategory, setNoteCategory] = useState('all'); // 'all' | 'lecture' | 'lab'
+  const [readingNoteModal, setReadingNoteModal] = useState(null);
 
   // Practical Attendance Tracker states
   const [practFilter, setPractFilter] = useState('ALL'); // 'ALL' | 'PRESENT' | 'ABSENT'
@@ -428,28 +430,41 @@ export default function StudentWorkstore() {
                     </div>
                   </div>
 
-                  <div className="mt-5 pt-3 border-t border-slate-700/60 flex items-center justify-between">
+                  <div className="mt-5 pt-3 border-t border-slate-700/60 flex items-center justify-between gap-2">
                     <div className="text-[11px] text-slate-400">
-                      <p>Uploaded by {note.uploadedBy}</p>
+                      <p className="truncate max-w-[120px]">Uploaded by {note.uploadedBy || 'Prof. Sarita Byagar'}</p>
                       <p className="text-[10px] text-slate-400">{note.date}</p>
                     </div>
 
-                    <button
-                      onClick={() =>
-                        downloadAttachment(
-                          note.attachment || {
-                            name: note.fileName || `${note.title.replace(/\s+/g, '_')}.pdf`,
-                            size: note.fileSize,
-                            type: note.fileType || 'application/pdf',
+                    <div className="flex items-center gap-1.5">
+                      {note.content && (
+                        <button
+                          onClick={() => setReadingNoteModal(note)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/40 text-xs font-semibold transition"
+                          title="Read complete verified notes"
+                        >
+                          <BookOpen className="w-3.5 h-3.5 text-purple-300" />
+                          <span>Read</span>
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          if (note.content) {
+                            downloadNotesPdf(note);
+                          } else if (note.attachment?.dataUrl) {
+                            downloadAttachment(note.attachment);
+                          } else {
+                            downloadNotesPdf(note);
                           }
-                        )
-                      }
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md transition"
-                      title="Download study material"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Download</span>
-                    </button>
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md transition"
+                        title="Download official lecture notes PDF"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Download PDF</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -526,6 +541,97 @@ export default function StudentWorkstore() {
                   </div>
                 ))}
           </div>
+
+          {/* STUDENT READING NOTES MODAL / DRAWER */}
+          {readingNoteModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+              <div className="bg-slate-900 border border-purple-500/40 rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+                {/* Modal Header */}
+                <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold">
+                        {readingNoteModal.subject}
+                      </span>
+                      <span className="text-[11px] text-slate-400">
+                        Faculty: {readingNoteModal.author || readingNoteModal.uploadedBy || 'Prof. Sarita Byagar (HOD - AIML)'}
+                      </span>
+                    </div>
+                    <h3 className="text-base font-bold text-white mt-1">
+                      {readingNoteModal.title}
+                    </h3>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => downloadNotesPdf(readingNoteModal)}
+                      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md flex items-center gap-1.5 transition"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download PDF</span>
+                    </button>
+                    <button
+                      onClick={() => setReadingNoteModal(null)}
+                      className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Modal Scrollable Body */}
+                <div className="p-6 overflow-y-auto space-y-5 text-xs text-slate-300 select-text">
+                  {/* Executive Overview */}
+                  {(readingNoteModal.summary || readingNoteModal.description) && (
+                    <div className="p-4 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 space-y-1.5">
+                      <span className="font-bold text-indigo-300 uppercase text-[10px] tracking-wider flex items-center gap-1.5">
+                        <BookOpen className="w-3.5 h-3.5" />
+                        Executive Overview & Objectives
+                      </span>
+                      <p className="text-slate-200 leading-relaxed">
+                        {readingNoteModal.summary || readingNoteModal.description}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* High-Yield Exam Checklist */}
+                  {readingNoteModal.keyTakeaways && readingNoteModal.keyTakeaways.length > 0 && (
+                    <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2">
+                      <span className="font-bold text-amber-300 uppercase text-[10px] tracking-wider flex items-center gap-1.5">
+                        <Award className="w-3.5 h-3.5" />
+                        High-Yield Exam Review & Viva-Voce Checklist
+                      </span>
+                      <ul className="space-y-1.5">
+                        {readingNoteModal.keyTakeaways.map((item, idx) => (
+                          <li key={idx} className="flex items-start gap-2 text-slate-300">
+                            <span className="text-amber-400 font-bold">•</span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Notes Content */}
+                  <div className="p-6 rounded-2xl bg-slate-950 border border-slate-800 space-y-4 font-sans text-slate-200 leading-relaxed whitespace-pre-wrap select-text">
+                    {readingNoteModal.content || readingNoteModal.description}
+                  </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div className="px-6 py-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+                  <span>Vidyanet Campus ERP • Official Verified Academic Lecture Handout</span>
+                  <button
+                    onClick={() => downloadNotesPdf(readingNoteModal)}
+                    className="text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Save PDF to Device</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

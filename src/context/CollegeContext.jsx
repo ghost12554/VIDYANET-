@@ -966,7 +966,7 @@ export function CollegeProvider({ children }) {
 
   // Notes Management
   const addNote = (noteData) => {
-    const fileName = noteData.attachment?.name || noteData.fileName || `${noteData.title.replace(/\s+/g, '_')}.pdf`;
+    const fileName = noteData.attachment?.name || noteData.fileName || `${(noteData.title || 'Notes').replace(/\s+/g, '_')}.pdf`;
     const fileSize = noteData.attachment?.size || noteData.fileSize || '1.8 MB';
     const fileType = noteData.attachment?.type || noteData.fileType || 'application/pdf';
 
@@ -974,15 +974,20 @@ export function CollegeProvider({ children }) {
       id: `note-${Date.now()}`,
       title: noteData.title,
       subject: noteData.subject,
-      uploadedBy: currentUser?.name || 'Prof. Divya C',
+      uploadedBy: currentUser?.name || 'Prof. Sarita Byagar',
       date: new Date().toISOString().split('T')[0],
       fileName,
       fileSize,
       fileType,
+      content: noteData.content || '',
+      summary: noteData.summary || noteData.description || '',
+      sections: noteData.sections || [],
+      keyTakeaways: noteData.keyTakeaways || [],
       attachment: noteData.attachment || {
         name: fileName,
         size: fileSize,
         type: fileType,
+        dataUrl: noteData.attachment?.dataUrl || null,
       },
       downloadUrl: '#',
       description: noteData.description || 'Lecture supplementary notes & slides.',
