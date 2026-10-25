@@ -6,6 +6,7 @@ import {
   generateAICodingTest,
   generateAINotes,
   generateAIPpt,
+  evaluateSubmissionWithAI,
 } from '../../services/aiGeneratorService';
 import { readFileAsAttachment, downloadAttachment, formatFileSize } from '../../utils/fileAttachmentUtils';
 import {
@@ -70,7 +71,6 @@ export default function TeacherBotMarket() {
   const [quizForm, setQuizForm] = useState({
     topic: '',
     numQuestions: 5,
-    rules: 'Moderate to challenging university difficulty. Focus on conceptual understanding, edge cases, and runtime invariants.',
     numOptions: 4,
     marksPerQuestion: 5,
     timeLimit: 15,
@@ -120,6 +120,7 @@ export default function TeacherBotMarket() {
     topic: '',
     numSlides: 5,
     audience: 'SY.B.Sc AIML Undergraduates',
+    rules: 'Focus on clear academic explanations, clean visual structure, bullet points with bold keywords, and practical code/diagram notes.',
     referenceDoc: null,
   });
   const [generatedPpt, setGeneratedPpt] = useState(null);
@@ -211,9 +212,8 @@ export default function TeacherBotMarket() {
   // --- 1. AI QUIZ GENERATION HANDLER ---
   const handleLoadQuizSample = () => {
     setQuizForm({
-      topic: 'Binary Search Trees & AVL Tree Rotations',
+      topic: 'Binary Search Trees & AVL Tree Rotations: High conceptual university rigor. Focus on balance factors (-1, 0, 1), LL/RR/LR/RL rotation algorithms, boundary edge cases, and worst-case log(N) runtime proof.',
       numQuestions: 5,
-      rules: 'High conceptual rigor. Focus on balance factors (-1, 0, 1), LL/RR/LR/RL rotation algorithms, and worst-case log(N) runtime proof.',
       numOptions: 4,
       marksPerQuestion: 5,
       timeLimit: 15,
@@ -228,15 +228,15 @@ export default function TeacherBotMarket() {
   const handleGenerateQuiz = async (e) => {
     e.preventDefault();
     if (!quizForm.topic.trim()) {
-      alert('Quiz Topic is mandatory.');
+      alert('Quiz Topic & Prompt is mandatory.');
       return;
     }
     setIsGeneratingQuiz(true);
     try {
       const quizResult = await generateAIQuiz({
-        topic: quizForm.topic,
+        topic: quizForm.topic.trim(),
         numQuestions: quizForm.numQuestions,
-        rules: quizForm.rules,
+        rules: quizForm.topic.trim(),
         numOptions: quizForm.numOptions,
         timeLimit: quizForm.timeLimit,
         marksPerQuestion: quizForm.marksPerQuestion,
@@ -244,12 +244,12 @@ export default function TeacherBotMarket() {
         referenceText: quizForm.referenceDoc?.name || '',
       });
 
-      setGeneratedQuiz(quizResult);
+      setGeneratedQuiz({ ...quizResult, _generatedAt: Date.now() });
 
       saveBotHistoryItem({
         panel: 'Quiz Generator',
         title: quizResult.title,
-        details: `${quizResult.questions.length} MCQs generated on "${quizForm.topic}" (${quizResult.marksPerQuestion} marks/q, total ${quizResult.totalMarks})`,
+        details: `${quizResult.questions.length} MCQs generated on "${quizForm.topic.slice(0, 50)}..." (${quizResult.marksPerQuestion} marks/q, total ${quizResult.totalMarks})`,
         data: quizResult,
       });
     } catch (err) {
@@ -291,16 +291,16 @@ export default function TeacherBotMarket() {
     setIsGeneratingAssign(true);
     try {
       const assignResult = await generateAIAssignment({
-        topic: assignGenForm.topic,
+        topic: assignGenForm.topic.trim(),
         numQuestions: assignGenForm.numQuestions,
-        rules: assignGenForm.rules,
+        rules: assignGenForm.rules?.trim() || '',
         deadline: assignGenForm.deadline,
         maxMarks: assignGenForm.maxMarks,
         department: attendanceDept,
         referenceText: assignGenForm.referenceDoc?.name || '',
       });
 
-      setGeneratedAssignment(assignResult);
+      setGeneratedAssignment({ ...assignResult, _generatedAt: Date.now() });
 
       saveBotHistoryItem({
         panel: 'Assignment Generator',
@@ -348,16 +348,16 @@ export default function TeacherBotMarket() {
     setIsGeneratingCodeTest(true);
     try {
       const codeResult = await generateAICodingTest({
-        topic: codeTestForm.topic,
+        topic: codeTestForm.topic.trim(),
         testType: codeTestForm.testType,
-        rules: codeTestForm.rules,
+        rules: codeTestForm.rules?.trim() || '',
         timeLimit: codeTestForm.timeLimit,
         totalMarks: codeTestForm.totalMarks,
         department: attendanceDept,
         referenceText: codeTestForm.referenceDoc?.name || '',
       });
 
-      setGeneratedCodeTest(codeResult);
+      setGeneratedCodeTest({ ...codeResult, _generatedAt: Date.now() });
 
       saveBotHistoryItem({
         panel: 'Test Generator',
@@ -402,14 +402,14 @@ export default function TeacherBotMarket() {
     setIsGeneratingNotes(true);
     try {
       const notesResult = await generateAINotes({
-        topic: notesGenForm.topic,
-        subject: notesGenForm.subject,
-        focusArea: notesGenForm.focusArea,
+        topic: notesGenForm.topic.trim(),
+        subject: notesGenForm.subject?.trim() || '',
+        focusArea: notesGenForm.focusArea?.trim() || '',
         department: attendanceDept,
         referenceText: notesGenForm.referenceDoc?.name || '',
       });
 
-      setGeneratedNotes(notesResult);
+      setGeneratedNotes({ ...notesResult, _generatedAt: Date.now() });
 
       saveBotHistoryItem({
         panel: 'Notes Generator',
@@ -446,6 +446,7 @@ export default function TeacherBotMarket() {
       topic: 'Convolutional Neural Networks: Convolutions, Pooling & Feature Maps',
       numSlides: 5,
       audience: 'SY.B.Sc AIML Undergraduates',
+      rules: 'Include architectural layer diagrams description, stride/padding formulas, mathematical intuition, and practical PyTorch code hints.',
       referenceDoc: {
         id: 'sample-ppt-doc',
         name: 'CNN_Architecture_Paper.pdf',
@@ -464,13 +465,14 @@ export default function TeacherBotMarket() {
     setCurrentSlideIndex(0);
     try {
       const pptResult = await generateAIPpt({
-        topic: pptForm.topic,
+        topic: pptForm.topic.trim(),
         numSlides: pptForm.numSlides,
-        audience: pptForm.audience,
+        audience: pptForm.audience.trim(),
+        rules: pptForm.rules?.trim() || '',
         referenceText: pptForm.referenceDoc?.name || '',
       });
 
-      setGeneratedPpt(pptResult);
+      setGeneratedPpt({ ...pptResult, _generatedAt: Date.now() });
 
       saveBotHistoryItem({
         panel: 'PPT Generator',
@@ -505,7 +507,7 @@ export default function TeacherBotMarket() {
   };
 
   // --- 6. AI SUBMISSIONS ANALYZER HANDLER ---
-  const handleRunAnalyzer = () => {
+  const handleRunAnalyzer = async () => {
     if (!analyzerPrompt.trim()) {
       alert('Mandatory requirement: You must provide instructions on how AI should evaluate the answers!');
       return;
@@ -517,26 +519,31 @@ export default function TeacherBotMarket() {
     }
 
     setIsAnalyzing(true);
-    setTimeout(() => {
-      const evaluated = currentAssign.submissions.map((sub) => {
-        const baseScore = currentAssign.maxMarks;
-        const awardedScore = Math.max(Math.round(baseScore * 0.88), Math.round(baseScore * 0.96));
-        const feedback = `[AI Auto-Evaluation criteria: "${analyzerPrompt.slice(0, 45)}..."]: Solution exhibits sound algorithmic logic, correct handling of invariants, and clean syntax formatting.`;
+    try {
+      const evaluated = await Promise.all(
+        currentAssign.submissions.map(async (sub) => {
+          const evalRes = await evaluateSubmissionWithAI({
+            assignmentTitle: currentAssign.title,
+            maxMarks: currentAssign.maxMarks || 20,
+            criteria: analyzerPrompt.trim(),
+            submissionText: sub.file || sub.text || 'Standard solution submission with implementation steps and logic walkthrough.',
+            studentName: sub.studentName,
+          });
 
-        gradeAssignment(currentAssign.id, sub.studentId, awardedScore, feedback);
+          gradeAssignment(currentAssign.id, sub.studentId, evalRes.awardedScore, evalRes.feedback);
 
-        return {
-          studentName: sub.studentName,
-          rollNo: sub.rollNo,
-          file: sub.file,
-          awardedScore,
-          maxMarks: baseScore,
-          feedback,
-        };
-      });
+          return {
+            studentName: sub.studentName,
+            rollNo: sub.rollNo,
+            file: sub.file,
+            awardedScore: evalRes.awardedScore,
+            maxMarks: currentAssign.maxMarks || 20,
+            feedback: evalRes.feedback,
+          };
+        })
+      );
 
       setAnalyzedResults(evaluated);
-      setIsAnalyzing(false);
 
       saveBotHistoryItem({
         panel: 'Submissions Analyzer',
@@ -546,7 +553,12 @@ export default function TeacherBotMarket() {
       });
 
       alert(`AI Submissions Analyzer finished! Evaluated ${evaluated.length} student submissions and updated gradebooks.`);
-    }, 1500);
+    } catch (err) {
+      console.error('Analyzer error:', err);
+      alert('Error running AI submission analyzer. Please check your network or try again.');
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   // --- 7. ATTENDANCE TAKING & WEEKLY REGISTER ---
@@ -770,18 +782,18 @@ export default function TeacherBotMarket() {
           </div>
 
           <form onSubmit={handleGenerateQuiz} className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-            {/* Topic (Mandatory) */}
-            <div className="md:col-span-2">
+            {/* Topic & Instructions Prompt (Mandatory) */}
+            <div className="md:col-span-3">
               <label className="block font-semibold text-slate-300 mb-1">
-                Quiz Topic <span className="text-rose-400 font-bold">* (Mandatory)</span>
+                Quiz Topic & Instructions Prompt <span className="text-rose-400 font-bold">* (Mandatory)</span>
               </label>
-              <input
-                type="text"
+              <textarea
+                rows={3}
                 required
-                placeholder="e.g. Binary Search Trees & AVL Rotations"
+                placeholder="Mention what you want and how you want it — specify topics, difficulty level, rules, or exact focus areas (e.g. Binary Search Trees & AVL Rotations: cover LL/RR cases, balance factor calculations, tricky edge cases, university college level)..."
                 value={quizForm.topic}
                 onChange={(e) => setQuizForm({ ...quizForm, topic: e.target.value })}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500 text-xs"
               />
             </div>
 
@@ -827,21 +839,6 @@ export default function TeacherBotMarket() {
                 placeholder="e.g. 15 minutes"
                 value={quizForm.timeLimit}
                 onChange={(e) => setQuizForm({ ...quizForm, timeLimit: e.target.value })}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
-              />
-            </div>
-
-            {/* Rules / Difficulty / Scope */}
-            <div className="md:col-span-3">
-              <label className="block font-semibold text-slate-300 mb-1">
-                Rules & Difficulty Criteria <span className="text-rose-400 font-bold">* (Mandatory)</span>
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Challenging difficulty, focus on AVL balance factor calculations, and rotation proofs"
-                value={quizForm.rules}
-                onChange={(e) => setQuizForm({ ...quizForm, rules: e.target.value })}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
               />
             </div>
@@ -926,14 +923,14 @@ export default function TeacherBotMarket() {
 
               <div className="space-y-3">
                 {generatedQuiz.questions.map((q, idx) => (
-                  <div key={idx} className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-xs">
+                  <div key={`quiz-q-${q.id || idx}-${generatedQuiz._generatedAt || idx}`} className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-xs">
                     <div className="flex items-center justify-between">
                       <p className="font-bold text-white">Q{idx + 1}: {q.question}</p>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2.5">
                       {q.options.map((opt, oIdx) => (
                         <div
-                          key={oIdx}
+                          key={`quiz-opt-${generatedQuiz._generatedAt || ''}-${idx}-${oIdx}-${String(opt).slice(0, 15)}`}
                           className={`p-2 rounded-xl border text-xs ${
                             oIdx === q.correctIndex
                               ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 font-semibold'
@@ -1628,6 +1625,19 @@ export default function TeacherBotMarket() {
                 type="text"
                 value={pptForm.audience}
                 onChange={(e) => setPptForm({ ...pptForm, audience: e.target.value })}
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
+              />
+            </div>
+
+            <div className="md:col-span-3">
+              <label className="block font-semibold text-slate-300 mb-1">
+                Rules & Presentation Style Criteria (Difficulty, Structure & Topics to Emphasize)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Include architectural breakdown, mathematical formulas, code snippet slides, and clean summary tables..."
+                value={pptForm.rules || ''}
+                onChange={(e) => setPptForm({ ...pptForm, rules: e.target.value })}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
               />
             </div>
