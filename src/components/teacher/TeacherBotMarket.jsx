@@ -95,7 +95,6 @@ export default function TeacherBotMarket() {
   const [codeTestForm, setCodeTestForm] = useState({
     topic: '',
     numQuestions: 2,
-    rules: 'Focus on time complexity O(n log n), optimal auxiliary space, edge cases (empty input, negative values), and test cases.',
     timeLimit: 30,
     totalMarks: 30,
     testType: 'coding', // 'coding' | 'typing'
@@ -346,9 +345,8 @@ export default function TeacherBotMarket() {
   // --- 3. AI CODE TEST GENERATION HANDLER ---
   const handleLoadCodeSample = () => {
     setCodeTestForm({
-      topic: 'Dynamic Programming: Longest Increasing Subsequence',
+      topic: 'Dynamic Programming: Longest Increasing Subsequence. Provide starter Python function. Must include 3 test cases, boundary checks (empty array, strictly decreasing), and O(N log N) patience sorting requirement.',
       numQuestions: 2,
-      rules: 'Provide starter Python function. Must include 3 test cases, boundary checks (empty array, strictly decreasing), and O(N log N) patience sorting requirement.',
       timeLimit: 30,
       totalMarks: 30,
       testType: 'coding',
@@ -363,7 +361,7 @@ export default function TeacherBotMarket() {
   const handleGenerateCodeTest = async (e) => {
     e.preventDefault();
     if (!codeTestForm.topic.trim()) {
-      alert('Test Topic is mandatory.');
+      alert('Coding Test Topic & Instructions Prompt is mandatory.');
       return;
     }
     setIsGeneratingCodeTest(true);
@@ -371,7 +369,7 @@ export default function TeacherBotMarket() {
       const codeResult = await generateAICodingTest({
         topic: codeTestForm.topic.trim(),
         testType: codeTestForm.testType,
-        rules: codeTestForm.rules?.trim() || '',
+        rules: codeTestForm.topic.trim(),
         timeLimit: codeTestForm.timeLimit,
         totalMarks: codeTestForm.totalMarks,
         department: attendanceDept,
@@ -383,7 +381,7 @@ export default function TeacherBotMarket() {
       saveBotHistoryItem({
         panel: 'Test Generator',
         title: codeResult.title,
-        details: `${codeTestForm.testType === 'coding' ? 'Algorithm Coding Exam' : 'Typing Speed Challenge'} • ${codeTestForm.timeLimit} mins • Total Marks: ${codeResult.totalMarks}`,
+        details: `${codeTestForm.testType === 'coding' ? 'Python Algorithm Coding Exam' : 'Typing Speed Challenge'} • ${codeTestForm.timeLimit} mins • Total Marks: ${codeResult.totalMarks}`,
         data: codeResult,
       });
     } catch (err) {
@@ -1227,56 +1225,60 @@ export default function TeacherBotMarket() {
           </div>
 
           <form onSubmit={handleGenerateCodeTest} className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-            <div className="md:col-span-2">
+            {/* Unified Coding Test Topic & Instructions Prompt */}
+            <div className="md:col-span-3">
               <label className="block font-semibold text-slate-300 mb-1">
-                Test Topic <span className="text-rose-400 font-bold">* (Mandatory)</span>
+                Coding Test Topic & Instructions Prompt <span className="text-rose-400 font-bold">* (Mandatory)</span>
               </label>
-              <input
-                type="text"
+              <textarea
+                rows={3}
                 required
-                placeholder="e.g. Dynamic Programming or Python Dictionary Hashing"
+                placeholder="Describe your programming test topic, constraints, and test requirements (e.g. 'Python modules and functions test: Implement a function that imports math and calculates Euclidean distance with 3 test cases. Edge case: zero distance.')"
                 value={codeTestForm.topic}
                 onChange={(e) => setCodeTestForm({ ...codeTestForm, topic: e.target.value })}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 leading-relaxed resize-y"
               />
             </div>
 
             <div>
               <label className="block font-semibold text-slate-300 mb-1">
-                Test Type
+                Assessment Format
               </label>
               <select
                 value={codeTestForm.testType}
                 onChange={(e) => setCodeTestForm({ ...codeTestForm, testType: e.target.value })}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
               >
-                <option value="coding">Code Editor Assessment with Terminal Test Cases</option>
+                <option value="coding">Python Code Editor with Interactive Terminal</option>
                 <option value="typing">Technical Typing Speed Test (WPM)</option>
               </select>
             </div>
 
-            <div className="md:col-span-3">
+            <div>
               <label className="block font-semibold text-slate-300 mb-1">
-                Rules & Difficulty Criteria <span className="text-rose-400 font-bold">*</span>
+                Time Limit (Minutes) <span className="text-rose-400 font-bold">*</span>
               </label>
               <input
-                type="text"
+                type="number"
+                min={5}
+                max={180}
                 required
-                placeholder="e.g. Medium difficulty, test boundary cases, enforce O(N) auxiliary space"
-                value={codeTestForm.rules}
-                onChange={(e) => setCodeTestForm({ ...codeTestForm, rules: e.target.value })}
+                value={codeTestForm.timeLimit}
+                onChange={(e) => setCodeTestForm({ ...codeTestForm, timeLimit: e.target.value })}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
               />
             </div>
 
-            <div className="md:col-span-2">
+            <div>
               <label className="block font-semibold text-slate-300 mb-1">
-                Time Limit (Minutes)
+                Total Marks
               </label>
               <input
                 type="number"
-                value={codeTestForm.timeLimit}
-                onChange={(e) => setCodeTestForm({ ...codeTestForm, timeLimit: e.target.value })}
+                min={10}
+                max={100}
+                value={codeTestForm.totalMarks}
+                onChange={(e) => setCodeTestForm({ ...codeTestForm, totalMarks: e.target.value })}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
               />
             </div>
@@ -1324,12 +1326,12 @@ export default function TeacherBotMarket() {
                 {isGeneratingCodeTest ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Compiling Assessment with LLaMA 3.3...</span>
+                    <span>Compiling Assessment & Terminal Invariants...</span>
                   </>
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4" />
-                    <span>Generate Assessment</span>
+                    <span>Generate Coding Assessment</span>
                   </>
                 )}
               </button>
@@ -1338,36 +1340,78 @@ export default function TeacherBotMarket() {
 
           {/* Generated Code Test Preview */}
           {generatedCodeTest && (
-            <div className="mt-6 p-6 rounded-3xl bg-slate-950/80 border border-purple-500/30 space-y-4">
+            <div
+              key={`code-test-${generatedCodeTest._generatedAt || ''}`}
+              className="mt-6 p-6 rounded-3xl bg-slate-950/80 border border-purple-500/30 space-y-4"
+            >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
                 <div>
-                  <h4 className="text-base font-bold text-white">{generatedCodeTest.title}</h4>
-                  <p className="text-xs text-slate-400">
-                    Duration: {generatedCodeTest.durationMins} mins
+                  <h4 className="text-base font-bold text-white flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
+                    <span>{generatedCodeTest.title}</span>
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Duration: {generatedCodeTest.durationMins || generatedCodeTest.timeLimit} mins • Total Marks: {generatedCodeTest.totalMarks || 30} • Department: {generatedCodeTest.department || 'AIML'}
                   </p>
                 </div>
 
                 <button
                   onClick={publishCodeTestToPortal}
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg flex items-center gap-1.5"
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 flex items-center gap-1.5 transition"
                 >
                   <Send className="w-3.5 h-3.5" />
-                  <span>Publish to Student Tests</span>
+                  <span>Publish to Student Terminal Assessment Panel</span>
                 </button>
               </div>
 
-              {generatedCodeTest.type === 'coding' ? (
-                <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-xs space-y-3">
-                  <p className="font-bold text-white">{generatedCodeTest.problems?.[0]?.title}</p>
-                  <p className="text-slate-300">{generatedCodeTest.problems?.[0]?.description}</p>
-                  <div>
-                    <span className="text-[11px] text-purple-300 font-semibold block mb-1">Starter Template:</span>
-                    <pre className="p-3 bg-slate-950 rounded-xl font-mono text-indigo-300 overflow-x-auto">
-                      {generatedCodeTest.problems?.[0]?.starterCode}
-                    </pre>
+              {generatedCodeTest.type === 'coding' || generatedCodeTest.type === 'code' ? (() => {
+                const challenge = generatedCodeTest.challenges?.[0] || generatedCodeTest.problems?.[0] || {};
+                const pyStarter =
+                  typeof challenge.starterCode === 'object'
+                    ? challenge.starterCode?.python
+                    : challenge.starterCode;
+
+                return (
+                  <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-xs space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="font-bold text-white text-sm">{challenge.title || generatedCodeTest.title}</p>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
+                        {challenge.difficulty || 'Medium'}
+                      </span>
+                    </div>
+
+                    <p className="text-slate-300 leading-relaxed">{challenge.description}</p>
+
+                    <div>
+                      <span className="text-[11px] text-purple-300 font-semibold block mb-1">
+                        Python Starter Template & Function Signature:
+                      </span>
+                      <pre className="p-3 bg-slate-950 rounded-xl font-mono text-emerald-300 overflow-x-auto text-[11px] border border-slate-800/80 leading-relaxed">
+                        {pyStarter || '# Python solution template'}
+                      </pre>
+                    </div>
+
+                    {challenge.testCases && challenge.testCases.length > 0 && (
+                      <div className="pt-2 border-t border-slate-800">
+                        <span className="text-[11px] text-slate-400 font-semibold block mb-1.5">
+                          Automated Terminal Test Cases ({challenge.testCases.length}):
+                        </span>
+                        <div className="space-y-1.5">
+                          {challenge.testCases.map((tc, tcIdx) => (
+                            <div key={tcIdx} className="p-2 rounded-lg bg-slate-950 border border-slate-800/60 font-mono text-[11px] flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <span className="text-purple-400 mr-2">Case {tcIdx + 1}:</span>
+                                <span className="text-slate-300">Input: <code className="text-indigo-300">{tc.input}</code></span>
+                              </div>
+                              <span className="text-emerald-400">Expected: {tc.expectedOutput || tc.expected}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ) : (
+                );
+              })() : (
                 <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-xs text-slate-300 font-mono">
                   {generatedCodeTest.passage}
                 </div>

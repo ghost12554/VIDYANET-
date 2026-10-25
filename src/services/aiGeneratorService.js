@@ -1329,6 +1329,170 @@ Required JSON Schema:
 // ----------------------------------------------------
 // 3. AI CODING TEST GENERATOR
 // ----------------------------------------------------
+const CODING_SUBTOPIC_BANKS = {
+  pythonModules: {
+    match: /\b(module|modules|import|package|packages|namespace|init)\b/i,
+    challenges: [
+      {
+        title: 'Python Modules & Dynamic Function Registry',
+        difficulty: 'Medium',
+        description: 'Implement a function count_module_functions(module_name) that dynamically imports the given standard Python module using importlib and returns the count of all public callable functions (attributes not starting with "_").',
+        starterCode: {
+          python: `import math
+
+def count_module_functions(module_name="math"):
+    """
+    Dynamically imports module_name and returns the number of public callable functions.
+    """
+    import importlib
+    mod = importlib.import_module(module_name)
+    funcs = [attr for attr in dir(mod) if callable(getattr(mod, attr)) and not attr.startswith("_")]
+    return len(funcs)
+
+# Test with math module:
+print("Public functions in math module:", count_module_functions("math"))
+`,
+          javascript: `function countModuleFunctions(moduleName) {
+    // JavaScript mock implementation
+    return 45;
+}
+console.log("Functions count:", countModuleFunctions("math"));
+`,
+        },
+        testCases: [
+          { input: '"math"', expectedOutput: '45', explanation: 'Math module contains 45 public functions in Python.' },
+          { input: '"json"', expectedOutput: '3', explanation: 'JSON module exports load, loads, dump, dumps.' },
+        ],
+      },
+    ],
+  },
+  pythonArrays: {
+    match: /\b(array|arrays|list|lists|slice|slicing|indexing|kadane|subarray)\b/i,
+    challenges: [
+      {
+        title: 'Maximum Subarray Sum (Kadane’s Algorithm)',
+        difficulty: 'Medium',
+        description: 'Given an integer array nums, find the contiguous subarray (containing at least one number) which has the largest sum and return its sum in O(N) time and O(1) auxiliary space.',
+        starterCode: {
+          python: `def max_subarray_sum(nums):
+    """
+    Computes the maximum contiguous subarray sum in O(N) time and O(1) auxiliary space.
+    """
+    if not nums:
+        return 0
+    max_so_far = nums[0]
+    curr_max = nums[0]
+    for x in nums[1:]:
+        curr_max = max(x, curr_max + x)
+        max_so_far = max(max_so_far, curr_max)
+    return max_so_far
+
+# Run test cases:
+sample = [-2, 1, -3, 4, -1, 2, 1, -5, 4]
+print("Max contiguous subarray sum:", max_subarray_sum(sample))
+`,
+          javascript: `function maxSubarraySum(nums) {
+    if (!nums || nums.length === 0) return 0;
+    let maxSoFar = nums[0], currMax = nums[0];
+    for (let i = 1; i < nums.length; i++) {
+        currMax = Math.max(nums[i], currMax + nums[i]);
+        maxSoFar = Math.max(maxSoFar, currMax);
+    }
+    return maxSoFar;
+}
+console.log("Max sum:", maxSubarraySum([-2, 1, -3, 4, -1, 2, 1, -5, 4]));
+`,
+        },
+        testCases: [
+          { input: '[-2, 1, -3, 4, -1, 2, 1, -5, 4]', expectedOutput: '6', explanation: 'Subarray [4, -1, 2, 1] has largest sum 6.' },
+          { input: '[1]', expectedOutput: '1', explanation: 'Single element array.' },
+          { input: '[5, 4, -1, 7, 8]', expectedOutput: '23', explanation: 'Subarray with positive numbers sum.' },
+        ],
+      },
+    ],
+  },
+  pythonDicts: {
+    match: /\b(dict|dicts|dictionary|dictionaries|hashmap|hash|key)\b/i,
+    challenges: [
+      {
+        title: 'Word Frequency Normalizer & Counter',
+        difficulty: 'Easy',
+        description: 'Write a function word_frequencies(text) that takes a string of words and returns a dictionary with each unique lowercase word mapped to its occurrence count, ignoring punctuation.',
+        starterCode: {
+          python: `def word_frequencies(text):
+    """
+    Returns a dictionary of word frequencies in lowercase without punctuation.
+    """
+    import re
+    words = re.findall(r'\\b\\w+\\b', text.lower())
+    counts = {}
+    for w in words:
+        counts[w] = counts.get(w, 0) + 1
+    return counts
+
+# Test script:
+print("Word frequencies:", word_frequencies("Hello world, hello Python!"))
+`,
+          javascript: `function wordFrequencies(text) {
+    const words = text.toLowerCase().match(/\\b\\w+\\b/g) || [];
+    const counts = {};
+    for (const w of words) counts[w] = (counts[w] || 0) + 1;
+    return counts;
+}
+`,
+        },
+        testCases: [
+          { input: '"apple banana apple orange banana apple"', expectedOutput: "{'apple': 3, 'banana': 2, 'orange': 1}", explanation: 'Accurate frequency distribution.' },
+          { input: '""', expectedOutput: '{}', explanation: 'Empty string returns empty dictionary.' },
+        ],
+      },
+    ],
+  },
+  dynamicProgramming: {
+    match: /\b(dp|dynamic\s*programming|lis|subsequence|knapsack|memoization)\b/i,
+    challenges: [
+      {
+        title: 'Longest Increasing Subsequence (LIS)',
+        difficulty: 'Hard',
+        description: 'Given an integer array nums, return the length of the longest strictly increasing subsequence using dynamic programming or binary search.',
+        starterCode: {
+          python: `def length_of_lis(nums):
+    """
+    Computes the length of the longest strictly increasing subsequence.
+    """
+    if not nums:
+        return 0
+    dp = [1] * len(nums)
+    for i in range(1, len(nums)):
+        for j in range(i):
+            if nums[i] > nums[j]:
+                dp[i] = max(dp[i], dp[j] + 1)
+    return max(dp)
+
+print("LIS of [10, 9, 2, 5, 3, 7, 101, 18]:", length_of_lis([10, 9, 2, 5, 3, 7, 101, 18]))
+`,
+          javascript: `function lengthOfLIS(nums) {
+    if (!nums || nums.length === 0) return 0;
+    const dp = new Array(nums.length).fill(1);
+    for (let i = 1; i < nums.length; i++) {
+        for (let j = 0; j < i; j++) {
+            if (nums[i] > nums[j]) dp[i] = Math.max(dp[i], dp[j] + 1);
+        }
+    }
+    return Math.max(...dp);
+}
+`,
+        },
+        testCases: [
+          { input: '[10, 9, 2, 5, 3, 7, 101, 18]', expectedOutput: '4', explanation: 'Subsequence [2, 3, 7, 101] has length 4.' },
+          { input: '[0, 1, 0, 3, 2, 3]', expectedOutput: '4', explanation: 'Subsequence [0, 1, 2, 3] has length 4.' },
+          { input: '[7, 7, 7, 7]', expectedOutput: '1', explanation: 'Strictly increasing requirement yields 1.' },
+        ],
+      },
+    ],
+  },
+};
+
 export async function generateAICodingTest({
   topic,
   numQuestions = 2,
@@ -1339,20 +1503,21 @@ export async function generateAICodingTest({
   referenceText = '',
 }) {
   const cleanTopic = (topic || 'Algorithm Engineering').trim();
-  const cleanRules = (rules || 'Enforce time complexity, space limits, and edge cases.').trim();
+  const cleanRules = (rules || topic || 'Enforce time complexity, space limits, and edge cases.').trim();
   const count = Math.max(1, Math.min(5, Number(numQuestions) || 2));
   const ruleAnalysis = analyzeDifficultyAndRules(cleanRules, cleanTopic);
   const marksPerChallenge = 25;
+  const text = (cleanTopic + ' ' + cleanRules).toLowerCase();
 
   const systemPrompt = `You are a technical coding interviewer designing programming challenges.
 CRITICAL MANDATE:
 1. Challenges MUST be specifically about: "${cleanTopic}".
-2. You MUST strictly apply the Rules & Difficulty Criteria: "${cleanRules}".
+2. You MUST strictly apply the Rules & Criteria: "${cleanRules}".
 3. Difficulty: ${ruleAnalysis.difficultyTier}.
-4. Provide starter code in Python and JavaScript, along with realistic test cases. Return ONLY valid JSON.`;
+4. Provide starter code in Python, along with realistic executable test cases. Return ONLY valid JSON.`;
 
   const userPrompt = `Create a ${count}-problem coding benchmark on topic: "${cleanTopic}".
-Rules & Difficulty Criteria: "${cleanRules}"
+Rules & Instructions: "${cleanRules}"
 Time Limit: ${timeLimit} minutes
 Department: ${department}
 ${referenceText ? `Context: ${referenceText.slice(0, 1500)}` : ''}
@@ -1388,88 +1553,136 @@ Required JSON Schema:
   const rawOutput = await callLlmApi({ systemPrompt, userPrompt });
   const parsed = cleanJsonOutput(rawOutput);
 
-  if (parsed && Array.isArray(parsed.challenges) && parsed.challenges.length > 0) {
+  const rawChallenges = parsed?.challenges || parsed?.problems || null;
+
+  if (Array.isArray(rawChallenges) && rawChallenges.length > 0) {
+    const formatted = rawChallenges.slice(0, count).map((c, idx) => ({
+      id: `code-${idx + 1}-${Date.now()}`,
+      title: c.title || `Challenge ${idx + 1}: ${cleanTopic}`,
+      difficulty: c.difficulty || (ruleAnalysis.isHard ? 'Hard' : ruleAnalysis.isEasy ? 'Easy' : 'Medium'),
+      marks: Number(c.marks) || marksPerChallenge,
+      description: c.description || `Implement an optimal solution for ${cleanTopic} satisfying rules: ${cleanRules}.`,
+      inputFormat: c.inputFormat || 'Read inputs from function arguments.',
+      outputFormat: c.outputFormat || 'Return the computed result matching constraints.',
+      starterCode: c.starterCode || {
+        python: `def solve_${cleanTopic.toLowerCase().replace(/[^a-z0-9]/g, '_')}(data):\n    # TODO: Implement solution adhering to: ${cleanRules}\n    return data\n\nprint("Result:", solve_${cleanTopic.toLowerCase().replace(/[^a-z0-9]/g, '_')}([1, 2, 3]))\n`,
+        javascript: `function solve(data) {\n    return data;\n}\n`,
+      },
+      testCases: Array.isArray(c.testCases) && c.testCases.length > 0
+        ? c.testCases
+        : [
+            { input: '[1, 2, 3]', expectedOutput: '[1, 2, 3]', explanation: 'Baseline test case.' },
+            { input: '[]', expectedOutput: '[]', explanation: 'Boundary edge case.' },
+          ],
+    }));
+
     return {
-      title: parsed.title || `${cleanTopic} Coding Test`,
-      subject: parsed.subject || 'Algorithm Engineering',
+      id: `test-${Date.now()}`,
+      title: parsed.title || `${cleanTopic} Coding Assessment`,
+      subject: parsed.subject || 'Algorithm Engineering (Python)',
       department: department,
       difficulty: parsed.difficulty || ruleAnalysis.difficultyTier,
-      type: 'code',
+      type: 'coding',
       timeLimit: Number(parsed.timeLimit) || Number(timeLimit) || 30,
-      totalMarks: parsed.challenges.length * marksPerChallenge,
-      challenges: parsed.challenges.slice(0, count).map((c, idx) => ({
-        id: `code-${idx + 1}`,
-        title: c.title || `Challenge ${idx + 1}: ${cleanTopic}`,
-        difficulty: c.difficulty || (ruleAnalysis.isHard ? 'Hard' : ruleAnalysis.isEasy ? 'Easy' : 'Medium'),
-        marks: Number(c.marks) || marksPerChallenge,
-        description: c.description || `Implement an optimal solution for ${cleanTopic} satisfying rules: ${cleanRules}.`,
-        inputFormat: c.inputFormat || 'Read inputs from function arguments or standard input.',
-        outputFormat: c.outputFormat || 'Return the computed result matching constraints.',
-        starterCode: c.starterCode || {
-          python: `def solve_${cleanTopic.toLowerCase().replace(/[^a-z0-9]/g, '_')}(data):\n    # TODO: Implement solution adhering to: ${cleanRules}\n    return data\n`,
-          javascript: `function solve${cleanTopic.replace(/[^a-zA-Z0-9]/g, '')}(data) {\n    // TODO: Implement solution adhering to: ${cleanRules}\n    return data;\n}\n`,
-        },
-        testCases: Array.isArray(c.testCases) && c.testCases.length > 0
-          ? c.testCases
-          : [
-              { input: '[1, 2, 3]', expectedOutput: '[3, 2, 1]', explanation: 'Baseline test case.' },
-              { input: '[]', expectedOutput: '[]', explanation: 'Boundary edge case.' },
-            ],
-      })),
+      durationMins: Number(parsed.timeLimit) || Number(timeLimit) || 30,
+      totalMarks: formatted.length * marksPerChallenge,
+      challenges: formatted,
+      problems: formatted,
     };
   }
 
-  // Dynamic Rule-Enforcing Fallback for Coding Tests
-  const funcBase = cleanTopic.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 20);
+  // Check subtopic banks
+  let matchedBank = null;
+  for (const key of Object.keys(CODING_SUBTOPIC_BANKS)) {
+    if (CODING_SUBTOPIC_BANKS[key].match.test(text)) {
+      matchedBank = CODING_SUBTOPIC_BANKS[key];
+      break;
+    }
+  }
+
+  if (matchedBank && Array.isArray(matchedBank.challenges)) {
+    const formatted = [];
+    for (let i = 0; i < count; i++) {
+      const c = matchedBank.challenges[i % matchedBank.challenges.length];
+      formatted.push({
+        id: `code-${i + 1}-${Date.now()}`,
+        title: c.title,
+        difficulty: c.difficulty,
+        marks: marksPerChallenge,
+        description: c.description,
+        inputFormat: 'Function parameter input.',
+        outputFormat: 'Return computed result value.',
+        starterCode: c.starterCode,
+        testCases: c.testCases,
+      });
+    }
+
+    return {
+      id: `test-${Date.now()}`,
+      title: `${cleanTopic} Python Coding Assessment`,
+      subject: 'Algorithm Engineering (Python)',
+      department: department,
+      difficulty: ruleAnalysis.difficultyTier,
+      type: 'coding',
+      timeLimit: Number(timeLimit) || 30,
+      durationMins: Number(timeLimit) || 30,
+      totalMarks: formatted.length * marksPerChallenge,
+      challenges: formatted,
+      problems: formatted,
+    };
+  }
+
+  // Dynamic Fallback for Arbitrary Topics
+  const funcBase = cleanTopic.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 20) || 'solution';
   const fallbackChallenges = [];
 
   for (let i = 1; i <= count; i++) {
     const isHardItem = ruleAnalysis.isHard || i > 1;
     fallbackChallenges.push({
-      id: `code-${i}`,
+      id: `code-${i}-${Date.now()}`,
       title: `${cleanTopic}: ${isHardItem ? 'Optimal Engine Implementation' : 'Foundational Core Routine'}`,
       difficulty: isHardItem ? 'Hard' : ruleAnalysis.isEasy ? 'Easy' : 'Medium',
       marks: marksPerChallenge,
-      description: `Implement an algorithm for ${cleanTopic} satisfying the criteria: "${cleanRules}". Your code must handle boundary conditions (null/empty inputs, large inputs) and maintain strict efficiency bounds.`,
+      description: `Implement an algorithm for ${cleanTopic} satisfying: "${cleanRules}". Your code must handle boundary conditions (null/empty inputs, large inputs) and maintain strict efficiency bounds.`,
       inputFormat: 'Input parameters containing dataset records, graph nodes, or query strings.',
       outputFormat: 'Return the normalized, validated output structure meeting all requirements.',
       starterCode: {
         python: `# Challenge ${i}: ${cleanTopic}
 # Criteria: ${cleanRules}
 def solve_${funcBase}_p${i}(inputs):
-    # Write your solution below:
+    """
+    Implementation for ${cleanTopic}.
+    """
     if not inputs:
         return []
     # Implementation logic here
     return inputs
+
+# Quick test run:
+print("Test Output:", solve_${funcBase}_p${i}([10, 20, 30]))
 `,
-        javascript: `// Challenge ${i}: ${cleanTopic}
-// Criteria: ${cleanRules}
-function solve_${funcBase}_p${i}(inputs) {
-    // Write your solution below:
-    if (!inputs || inputs.length === 0) return [];
-    // Implementation logic here
-    return inputs;
-}
-`,
+        javascript: `function solve(inputs) {\n    return inputs || [];\n}\n`,
       },
       testCases: [
-        { input: 'inputs = [10, 25, 5, 80, 42]', expectedOutput: 'Processed output respecting rules', explanation: `Standard test verification for ${cleanTopic}.` },
-        { input: 'inputs = []', expectedOutput: '[]', explanation: 'Empty set boundary edge case.' },
-        { input: 'inputs = [-5, 0, 5]', expectedOutput: 'Signed boundary state', explanation: 'Negative and zero value validation.' },
+        { input: '[10, 20, 30]', expectedOutput: '[10, 20, 30]', explanation: `Standard test verification for ${cleanTopic}.` },
+        { input: '[]', expectedOutput: '[]', explanation: 'Empty set boundary edge case.' },
+        { input: '[-5, 0, 5]', expectedOutput: '[-5, 0, 5]', explanation: 'Signed boundary state.' },
       ],
     });
   }
 
   return {
+    id: `test-${Date.now()}`,
     title: `${cleanTopic} Coding Benchmark`,
-    subject: 'Algorithm Engineering',
+    subject: 'Algorithm Engineering (Python)',
     department: department,
     difficulty: ruleAnalysis.difficultyTier,
-    type: 'code',
+    type: 'coding',
     timeLimit: Number(timeLimit) || 30,
+    durationMins: Number(timeLimit) || 30,
     totalMarks: fallbackChallenges.length * marksPerChallenge,
     challenges: fallbackChallenges,
+    problems: fallbackChallenges,
   };
 }
 

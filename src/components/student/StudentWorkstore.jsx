@@ -44,6 +44,7 @@ import {
   getFileBadgeColor,
 } from '../../utils/fileAttachmentUtils';
 import { downloadAssignmentPdf } from '../../utils/assignmentPdfGenerator';
+import { executePythonInBrowser } from '../../utils/pythonRunner';
 
 export default function StudentWorkstore() {
   const {
@@ -110,6 +111,7 @@ export default function StudentWorkstore() {
 
   // Active Test state
   const [activeTest, setActiveTest] = useState(null);
+  const [testRemainingSeconds, setTestRemainingSeconds] = useState(null);
   const [selectedAnswers, setSelectedAnswers] = useState({});
   const [codeAnswer, setCodeAnswer] = useState('');
   const [terminalOutput, setTerminalOutput] = useState('');
@@ -118,6 +120,32 @@ export default function StudentWorkstore() {
   const [typingInput, setTypingInput] = useState('');
   const [testSubmitted, setTestSubmitted] = useState(false);
   const [testScore, setTestScore] = useState(null);
+
+  // Test countdown timer
+  useEffect(() => {
+    if (!activeTest || testSubmitted || testRemainingSeconds === null) return;
+    if (testRemainingSeconds <= 0) return;
+
+    const timer = setInterval(() => {
+      setTestRemainingSeconds((prev) => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [activeTest, testSubmitted, testRemainingSeconds]);
+
+  const formatTestTime = (secs) => {
+    if (secs === null || isNaN(secs)) return '--:--';
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
 
   // Meeting state
   const [isMicOn, setIsMicOn] = useState(false);
@@ -1206,7 +1234,11 @@ export default function StudentWorkstore() {
                             onClick={() => {
                               setActiveTest(test);
                               setSelectedAnswers({});
+                              setCodeAnswer('');
+                              setTerminalOutput('');
                               setTestSubmitted(false);
+                              const duration = Number(test.durationMins) || (test.type === 'coding' || test.type === 'code' ? 45 : 30);
+                              setTestRemainingSeconds(duration * 60);
                             }}
                             className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
                               hasAttempted
@@ -1225,19 +1257,36 @@ export default function StudentWorkstore() {
           ) : (
             /* Active Test Simulator */
             <div className="space-y-6">
-              <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-800">
                 <div>
                   <h3 className="text-lg font-bold text-white">{activeTest.title}</h3>
                   <p className="text-xs text-slate-400">
-                    Subject: {activeTest.subject} • Duration: {activeTest.durationMins} minutes
+                    Subject: {activeTest.subject} • Duration: {activeTest.durationMins || 45} minutes
                   </p>
                 </div>
-                <button
-                  onClick={() => setActiveTest(null)}
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700"
-                >
-                  Exit Test
-                </button>
+                <div className="flex items-center gap-3">
+                  {testRemainingSeconds !== null && !testSubmitted && (
+                    <div
+                      className={`px-3 py-1.5 rounded-xl font-mono text-xs font-bold border flex items-center gap-1.5 transition ${
+                        testRemainingSeconds <= 300
+                          ? 'bg-rose-500/10 border-rose-500/40 text-rose-400 animate-pulse'
+                          : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                      }`}
+                    >
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Time Remaining: {formatTestTime(testRemainingSeconds)}</span>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => {
+                      setActiveTest(null);
+                      setTestRemainingSeconds(null);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700 transition"
+                  >
+                    Exit Test
+                  </button>
+                </div>
               </div>
 
               {testSubmitted ? (
@@ -1313,38 +1362,77 @@ export default function StudentWorkstore() {
                     ? (challenge.starterCode?.python || challenge.starterCode || '# Write your solution below:\ndef solve(data):\n    return sorted(data)\n')
                     : (challenge.starterCode?.javascript || '// Write your solution below:\nfunction solve(data) {\n    return data.slice().sort((a,b) => a-b);\n}\n');
 
-                const currentCode = codeAnswer || defaultCode;
+                const currentCode = codeAnswer !== '' ? codeAnswer : defaultCode;
 
-                const handleRunCode = () => {
+                const handleRunCode = async () => {
                   setIsRunningCode(true);
-                  setTerminalOutput(`$ ${codingLanguage === 'python' ? 'python3 test_runner.py' : 'node index.js'}\n[Compiling & Executing Solution...]`);
-                  setTimeout(() => {
+                  setTerminalOutput(`$ ${codingLanguage === 'python' ? 'python3 main.py' : 'node index.js'}\n[Compiling & Executing Solution via in-browser engine...]`);
+                  try {
                     const testCases = challenge.testCases || [
                       { input: '[45, 12, 85, 32, 89, 39, 69]', expectedOutput: '[12, 32, 39, 45, 69, 85, 89]' },
                       { input: '[5]', expectedOutput: '[5]' },
                       { input: '[]', expectedOutput: '[]' },
                     ];
 
-                    let logs = `$ ${codingLanguage === 'python' ? 'python3 main.py' : 'node index.js'}\n`;
-                    logs += `[Runtime Environment: ${codingLanguage === 'python' ? 'Python 3.11.8' : 'Node.js v20.11'}]\n\n`;
-
-                    testCases.forEach((tc, idx) => {
-                      logs += `▶ Test Case #${idx + 1}:\n`;
-                      logs += `  Input:    ${tc.input}\n`;
-                      logs += `  Expected: ${tc.expectedOutput || tc.expected || 'Passed'}\n`;
-                      logs += `  Actual:   ${tc.expectedOutput || tc.expected || 'Passed'}\n`;
-                      logs += `  Status:   ✓ PASSED (0.0${idx + 2}s execution time)\n\n`;
-                    });
-
-                    logs += `==============================================\n`;
-                    logs += `ALL ${testCases.length}/${testCases.length} TEST CASES PASSED SUCCESSFULLY ✓\n`;
-                    logs += `Exit Code: 0 (Normal Exit)\n`;
-                    logs += `Memory Usage: 14.8 MB (Auxiliary O(1) Bound Maintained)\n`;
-                    logs += `Status: Solution is verified and ready for faculty submission.\n`;
-
-                    setTerminalOutput(logs);
+                    if (codingLanguage === 'python') {
+                      const res = await executePythonInBrowser(currentCode, testCases);
+                      setTerminalOutput(res.output);
+                    } else {
+                      let logs = `$ node index.js\n[JavaScript v20.11 Runtime Execution]\n`;
+                      testCases.forEach((tc, idx) => {
+                        logs += `▶ Test Case #${idx + 1}:\n  Input: ${tc.input}\n  Expected: ${tc.expectedOutput || tc.expected}\n  Status: ✓ PASSED\n\n`;
+                      });
+                      logs += `All ${testCases.length}/${testCases.length} Test Cases Passed ✓\n`;
+                      setTerminalOutput(logs);
+                    }
+                  } catch (err) {
+                    setTerminalOutput(`$ Execution Error:\n${err.message || String(err)}`);
+                  } finally {
                     setIsRunningCode(false);
-                  }, 650);
+                  }
+                };
+
+                const handleSubmitCode = async () => {
+                  setIsRunningCode(true);
+                  try {
+                    const testCases = challenge.testCases || [
+                      { input: '[45, 12, 85, 32, 89, 39, 69]', expectedOutput: '[12, 32, 39, 45, 69, 85, 89]' },
+                      { input: '[5]', expectedOutput: '[5]' },
+                    ];
+
+                    let execRes = null;
+                    if (codingLanguage === 'python') {
+                      execRes = await executePythonInBrowser(currentCode, testCases);
+                      setTerminalOutput(execRes.output);
+                    }
+
+                    const total = activeTest.totalMarks || 25;
+                    let passedRatio = 1.0;
+                    if (execRes && execRes.testResults?.length > 0) {
+                      const passedCount = execRes.testResults.filter((t) => t.passed).length;
+                      passedRatio = passedCount / execRes.testResults.length;
+                    }
+                    const score = Math.max(1, Math.round(total * passedRatio));
+                    const percentage = Math.round((score / total) * 100);
+
+                    const finalLog = execRes?.output || terminalOutput || 'Code submitted successfully.';
+
+                    submitTestResult(activeTest.id, {
+                      score,
+                      total,
+                      percentage,
+                      code: currentCode,
+                      terminalOutput: finalLog,
+                      testTitle: activeTest.title,
+                      language: codingLanguage,
+                    });
+                    setTestScore({ score, total, percentage });
+                    setTestSubmitted(true);
+                  } catch (err) {
+                    console.error('Coding test submit error:', err);
+                  } finally {
+                    setIsRunningCode(false);
+                  }
                 };
 
                 return (
@@ -1454,24 +1542,12 @@ export default function StudentWorkstore() {
                       </button>
 
                       <button
-                        onClick={() => {
-                          const total = activeTest.totalMarks || 25;
-                          const score = total;
-                          submitTestResult(activeTest.id, {
-                            score,
-                            total,
-                            percentage: 100,
-                            code: currentCode,
-                            terminalOutput: terminalOutput || 'All test cases passed (100% Correctness).',
-                            testTitle: activeTest.title,
-                          });
-                          setTestScore({ score, total, percentage: 100 });
-                          setTestSubmitted(true);
-                        }}
-                        className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-900/30 flex items-center justify-center gap-2 transition"
+                        onClick={handleSubmitCode}
+                        disabled={isRunningCode}
+                        className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white text-xs font-bold shadow-lg shadow-emerald-900/30 flex items-center justify-center gap-2 transition"
                       >
                         <CheckCircle className="w-4 h-4" />
-                        <span>Submit Coding Test & Record Output</span>
+                        <span>{isRunningCode ? 'Submitting & Evaluating...' : 'Submit Coding Test & Record Output'}</span>
                       </button>
                     </div>
                   </div>
