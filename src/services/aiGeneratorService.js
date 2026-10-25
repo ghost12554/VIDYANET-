@@ -2157,6 +2157,202 @@ print("${cleanTopic} Execution Result:", output_result)
 // ----------------------------------------------------
 // 5. AI PPT GENERATOR
 // ----------------------------------------------------
+const PPT_SUBTOPIC_BANKS = {
+  cnnDeepLearning: {
+    match: /\b(cnn|convolution|convolutional|pooling|feature map|resnet|kernel|filter|image classification|deep learning)\b/i,
+    title: 'Convolutional Neural Networks (CNNs): Architecture & Feature Extraction',
+    slides: [
+      {
+        title: 'Foundations of Computer Vision & Convolutions',
+        subtitle: 'Why Standard Multi-Layer Perceptrons Fail on High-Resolution Images',
+        category: 'FOUNDATIONS',
+        highlightPill: 'PARAMETER SHARING',
+        bullets: [
+          'Full connectivity on images causes parameter explosion: A 1000x1000 RGB image with 1000 hidden units requires 3 billion weights.',
+          'Convolutions enforce Spatial Locality: Pixels close to each other are strongly correlated.',
+          'Translation Equivariance: A feature detector (edge, texture) discovered in one image patch works across the entire canvas.',
+          'Sparse Connectivity: Each output neuron connects only to a small localized receptive field.',
+        ],
+        codeSnippet: `import torch\nimport torch.nn as nn\n\n# 2D Convolution Layer\nconv = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, stride=1, padding=1)\nprint("Conv2D weight shape:", conv.weight.shape) # [32, 3, 3, 3]`,
+        insights: [
+          'Receptive field grows linearly with network depth.',
+          'Parameter sharing drastically reduces memory footprint compared to Dense linear layers.',
+        ],
+        speakerNotes: 'Start by explaining why MLPs fail on 2D spatial images due to parameter explosion, then introduce how biological visual cortex inspires localized receptive fields.',
+      },
+      {
+        title: 'Mathematical Convolution, Kernels & Padding',
+        subtitle: 'Discrete 2D Cross-Correlation Mechanics',
+        category: 'MATHEMATICS',
+        highlightPill: 'STRIDE & PADDING',
+        bullets: [
+          'Mathematical Operator: (I * K)(i, j) = SUM_m SUM_n I(i+m, j+n) * K(m, n).',
+          'Output Dimension Formula: W_out = floor((W_in - K + 2P) / S) + 1.',
+          'Valid Padding (P=0): Output shrinks after every convolution layer.',
+          'Same Padding (P = (K - 1) / 2): Preserves spatial dimensions across layers.',
+        ],
+        codeSnippet: `# Dimension Calculation\ndef conv_out_dim(w_in, k=3, p=1, s=1):\n    return ((w_in - k + 2 * p) // s) + 1\n\nprint("32x32 image with 3x3 kernel, pad=1 ->", conv_out_dim(32)) # 32`,
+        insights: [
+          'Odd kernel sizes (3x3, 5x5) are preferred because they maintain symmetric central pixels.',
+          '1x1 convolutions act as channel-wise cross-pooling dimensionality reducers.',
+        ],
+        speakerNotes: 'Walk students through the output dimension formula on the whiteboard. Emphasize that padding prevents spatial shrinkage.',
+      },
+      {
+        title: 'Subsampling: Max Pooling vs Average Pooling',
+        subtitle: 'Spatial Downsampling & Invariance',
+        category: 'ARCHITECTURE',
+        highlightPill: 'SPATIAL REDUCTION',
+        bullets: [
+          'Purpose: Reduces spatial dimensions (H, W), decreasing computational load and controlling overfitting.',
+          'Max Pooling: Selects maximum activation in window (sharp edge/prominent feature preservation).',
+          'Average Pooling / Global Average Pooling (GAP): Averages window values; GAP replaces heavy Dense layers before Softmax.',
+          'Pooling layers contain zero learnable weights; they only operate as fixed mathematical subsamplers.',
+        ],
+        codeSnippet: `pool = nn.MaxPool2d(kernel_size=2, stride=2)\nx = torch.randn(1, 32, 28, 28)\nout = pool(x)\nprint("Pooled shape:", out.shape) # [1, 32, 14, 14]`,
+        insights: [
+          'Pooling grants minor translation invariance: Small pixel shifts do not alter max pooled activation.',
+          'Modern architectures (like ConvNeXt) occasionally replace pooling with strided convolutions.',
+        ],
+        speakerNotes: 'Show the 2x2 grid diagram. Highlight that max pooling passes the strongest neuron activation, capturing salient textures.',
+      },
+      {
+        title: 'Deep Residual Learning: The ResNet Breakthrough',
+        subtitle: 'Overcoming Vanishing Gradients with Skip Connections',
+        category: 'DEEP DIVE',
+        highlightPill: 'IDENTITY MAPPING',
+        bullets: [
+          'Degradation Problem: Beyond 20 layers, plain networks suffer from optimization failure and vanishing gradients.',
+          'Residual Block: Rather than learning H(x), the network learns residual mapping F(x) = H(x) - x.',
+          'Skip Connection: Output is H(x) = F(x) + x, allowing gradients to propagate directly via the identity shortcut.',
+          'Enables training of ultra-deep networks (ResNet-50, ResNet-101, ResNet-152) without accuracy saturation.',
+        ],
+        codeSnippet: `class ResidualBlock(nn.Module):\n    def __init__(self, channels):\n        super().__init__()\n        self.conv = nn.Sequential(\n            nn.Conv2d(channels, channels, 3, padding=1),\n            nn.BatchNorm2d(channels),\n            nn.ReLU(),\n            nn.Conv2d(channels, channels, 3, padding=1)\n        )\n    def forward(self, x):\n        return x + self.conv(x) # Skip Connection`,
+        insights: [
+          'During backpropagation, d(F(x)+x)/dx = dF/dx + 1: The +1 guarantees gradients never vanish completely.',
+          'Residual architectures form the backbone of modern Vision Transformers and Diffusion Models.',
+        ],
+        speakerNotes: 'Explain the famous He et al. 2015 paper. The +1 identity term is the secret why 152 layers can be trained seamlessly.',
+      },
+      {
+        title: 'Industrial Applications & Exam Viva Checklist',
+        subtitle: 'Enterprise Computer Vision & Viva-Voce Review Points',
+        category: 'EXAM REVIEW',
+        highlightPill: 'HIGH-YIELD VIVA',
+        bullets: [
+          'Production Uses: Autonomous vehicles (Tesla FSD object detection), Medical imaging (CT/MRI tumor segmentation), Face ID.',
+          'Q1: Why use two 3x3 conv layers instead of one 5x5 conv layer? (Answer: Same receptive field, 28% fewer parameters, two non-linearities).',
+          'Q2: What is the receptive field of a neuron? (Answer: The spatial region in the input image that influences that neuron).',
+          'Q3: How does Batch Normalization accelerate training? (Answer: Reduces internal covariate shift, enables higher learning rates).',
+        ],
+        codeSnippet: `# Parameter Comparison:\n# 5x5 conv on C channels: 25 * C * C\n# Two 3x3 convs: 2 * (9 * C * C) = 18 * C * C (28% parameter reduction!)`,
+        insights: [
+          'Memory bottleneck in CNNs is during backpropagation where intermediate feature maps must be cached.',
+          'Review receptive field arithmetic before semester viva examination.',
+        ],
+        speakerNotes: 'Conclude with oral exam tips. Remind students that receptive field calculation is a guaranteed external examiner question.',
+      },
+    ],
+  },
+  pythonArrays: {
+    match: /\b(python array|python arrays|array|arrays|list|lists|slice|slicing|dynamic array|memory layout)\b/i,
+    title: 'Python Arrays & Dynamic Lists: Architecture, Slicing & Complexity',
+    slides: [
+      {
+        title: 'Python Sequences: Lists vs Array Module vs NumPy',
+        subtitle: 'Heterogeneous Dynamic Lists vs Homogeneous C-Style Arrays',
+        category: 'FOUNDATIONS',
+        highlightPill: 'PYLISTOBJECT',
+        bullets: [
+          'Python list: Dynamic heterogeneous sequence implemented as an array of 64-bit pointers to PyObject instances.',
+          'array.array: Space-efficient homogeneous sequence storing raw primitive C data types (signed int, double, float).',
+          'NumPy ndarray: Contiguous C/Fortran memory buffer engineered for multi-dimensional vectorized mathematical operations.',
+          'Key Distinction: Python lists allow mixed types ([1, "text", 3.14]) at the cost of pointer dereference overhead.',
+        ],
+        codeSnippet: `import sys, array\npy_list = [1, 2, 3, 4, 5]\nc_array = array.array('i', [1, 2, 3, 4, 5])\nprint("List bytes:", sys.getsizeof(py_list))\nprint("C-Array bytes:", sys.getsizeof(c_array))`,
+        insights: [
+          'Lists store references, not values directly.',
+          'Cache locality is significantly higher in array.array and NumPy due to contiguous value storage.',
+        ],
+        speakerNotes: 'Emphasize that in Python, everything is an object. A list of integers is actually a list of pointers to heap-allocated integer objects.',
+      },
+      {
+        title: 'Memory Architecture & Geometric Over-Allocation',
+        subtitle: 'Why Python List Append is Amortized O(1)',
+        category: 'ARCHITECTURE',
+        highlightPill: 'AMORTIZED O(1)',
+        bullets: [
+          'Contiguous Pointer Buffer: Elements are stored in contiguous virtual memory slots for O(1) index access.',
+          'Geometric Growth Formula: When capacity is exceeded, CPython allocates extra slots: new_alloc = (newsize >> 3) + (newsize < 9 ? 3 : 6) + newsize.',
+          'Amortized Analysis: Occasional O(N) array copying is distributed across N appends, yielding amortized O(1) cost.',
+          'Capacity Shrinkage: CPython also shrinks capacity when length drops below half of allocated buffer.',
+        ],
+        codeSnippet: `nums = []\nfor i in range(10):\n    nums.append(i)\n    print(f"Len: {len(nums)}, Memory: {sys.getsizeof(nums)} bytes")`,
+        insights: [
+          'Over-allocation avoids calling realloc() on every single append.',
+          'Insertion at index 0 requires shifting all N pointers right: strictly O(N).',
+        ],
+        speakerNotes: 'Demonstrate memory growth live in Python REPL. Students will visually see bytes jump in steps (0 -> 4 -> 8 -> 16 -> 25).',
+      },
+      {
+        title: 'Mastering Advanced Python Slicing Syntax',
+        subtitle: 'Syntax: arr[start : stop : step]',
+        category: 'IMPLEMENTATION',
+        highlightPill: 'SLICING SEMANTICS',
+        bullets: [
+          'Slicing creates a NEW list containing shallow copies of original object references.',
+          'Half-Open Interval: start index is inclusive, stop index is exclusive (arr[2:5] takes indices 2, 3, 4).',
+          'Negative Step: Reverses direction. arr[::-1] reverses entire sequence in O(N) time.',
+          'In-Place Slice Assignment: arr[1:3] = [99, 100] mutates the original list buffer without allocating a new variable.',
+        ],
+        codeSnippet: `arr = [10, 20, 30, 40, 50, 60, 70, 80]\nprint("Reversed:", arr[::-1])       # [80..10]\nprint("Every 2nd:", arr[::2])       # [10, 30, 50, 70]\narr[1:3] = [999]                   # In-place slice mutation\nprint("Mutated:", arr)`,
+        insights: [
+          'Slice bounds never raise IndexError: out-of-range indices are silently clamped to length.',
+          'Use itertools.islice for memory-friendly generator slicing on massive datasets.',
+        ],
+        speakerNotes: 'Explain the difference between creating a new slice (arr[:]) versus in-place assignment (arr[:] = ...).',
+      },
+      {
+        title: 'Asymptotic Complexity & Performance Matrix',
+        subtitle: 'Big-O Analysis of Common Python List Operations',
+        category: 'COMPLEXITY',
+        highlightPill: 'TIME COMPLEXITY',
+        bullets: [
+          'Index Access arr[i]: O(1) time - direct memory address offset calculation: addr = base + i * 8.',
+          'Append arr.append(x): O(1) amortized - appends to pre-allocated buffer.',
+          'Insert / Pop at start: O(N) time - requires memmove() of all elements in buffer.',
+          'Search (x in arr): O(N) time - linear scan checking equality until match or end.',
+          'Sorting arr.sort(): O(N log N) - powered by Timsort (hybrid merge sort + insertion sort).',
+        ],
+        codeSnippet: `# Operation Benchmarks:\n# arr[i]       -> O(1)\n# arr.append() -> O(1) amortized\n# arr.insert(0)-> O(N)\n# arr.pop(0)   -> O(N)\n# x in arr     -> O(N)\n# arr.sort()   -> O(N log N)`,
+        insights: [
+          'For FIFO queues requiring O(1) pop from left, use collections.deque instead of list.',
+          'For constant time membership tests, use set() (O(1) hash table lookup).',
+        ],
+        speakerNotes: 'Stress that using list as a FIFO queue (pop(0)) is an anti-pattern that destroys performance in large-scale services.',
+      },
+      {
+        title: 'Viva-Voce Review & Common Pitfalls Checklist',
+        subtitle: 'High-Yield Examination Talking Points',
+        category: 'EXAM REVIEW',
+        highlightPill: 'VIVA PREPARATION',
+        bullets: [
+          'Pitfall 1: Mutable Default Arguments - def add(x, arr=[]) shares the same list across invocations.',
+          'Pitfall 2: Shallow vs Deep Copy - list.copy() copies pointer references; modifying nested lists alters both copies.',
+          'Q1: How does Timsort optimize sorting in Python? (Answer: Exploits natural sorted runs in real-world data).',
+          'Q2: When should you use tuple instead of list? (Answer: When immutability is required, or as dictionary keys).',
+        ],
+        codeSnippet: `# Mutable Default Trap Fix:\ndef safe_append(item, target=None):\n    if target is None:\n        target = [] # Fresh list per call!\n    target.append(item)\n    return target`,
+        insights: [
+          'Remember: Python lists are dynamic pointer arrays, not linked lists.',
+          'Tuples have smaller memory overhead because they do not maintain over-allocation buffers.',
+        ],
+        speakerNotes: 'Show the mutable default argument trap. Every external examiner loves testing students on this exact bug.',
+      },
+    ],
+  },
+};
+
 export async function generateAIPpt({
   topic,
   numSlides = 5,
@@ -2168,19 +2364,33 @@ export async function generateAIPpt({
   const cleanTopic = (topic || 'Advanced Computing Topic').trim();
   const cleanAudience = (audience || 'Undergraduate Engineering Students').trim();
   const cleanRules = (rules || 'Clear visual slides, include technical equations, architecture diagrams description, and real-world system applications.').trim();
-  const count = Math.max(3, Math.min(15, Number(numSlides) || 5));
+  const count = Math.max(3, Math.min(10, Number(numSlides) || 5));
   const ruleAnalysis = analyzeDifficultyAndRules(cleanRules, cleanTopic);
 
-  const systemPrompt = `You are a professional academic presentation designer creating slide decks for university lectures.
+  // Check subtopic banks
+  const combinedText = `${cleanTopic} ${cleanRules}`;
+  let matchedBank = null;
+  for (const key of Object.keys(PPT_SUBTOPIC_BANKS)) {
+    if (PPT_SUBTOPIC_BANKS[key].match.test(combinedText)) {
+      matchedBank = PPT_SUBTOPIC_BANKS[key];
+      break;
+    }
+  }
+
+  // Realistic deliberate synthesis pause so AI has thinking time (satisfying user request: "make it thinkable")
+  await new Promise((resolve) => setTimeout(resolve, 1400));
+
+  const systemPrompt = `You are a distinguished university professor and keynote presentation designer creating slide decks for engineering lectures.
 CRITICAL MANDATE:
-1. Every slide MUST be specifically about topic: "${cleanTopic}".
-2. You MUST strictly obey and incorporate the teacher's Rules & Presentation Criteria: "${cleanRules}".
+1. Every slide MUST be deeply, authentically about topic: "${cleanTopic}".
+2. Obey the teacher's style rules: "${cleanRules}".
 3. Target Audience: "${cleanAudience}". Depth: ${ruleAnalysis.difficultyTier}.
-4. Return ONLY valid JSON matching the schema below.`;
+4. Provide structured, visual, multi-card slide content with code snippets and professor speaker notes.
+5. Return ONLY valid JSON matching the schema below.`;
 
   const userPrompt = `Create a ${count}-slide academic presentation on: "${cleanTopic}".
 Target Audience: ${cleanAudience}
-Rules & Presentation Style: "${cleanRules}"
+Presentation Style & Criteria: "${cleanRules}"
 Department: ${department}
 ${referenceText ? `Context: ${referenceText.slice(0, 1500)}` : ''}
 
@@ -2195,19 +2405,22 @@ Required JSON Schema:
   "slides": [
     {
       "slideNumber": 1,
-      "title": "Slide Title",
-      "subtitle": "Context / Subtitle",
+      "title": "Specific Title",
+      "subtitle": "Clear Technical Subtitle",
+      "category": "FOUNDATIONS",
+      "highlightPill": "KEY THEOREM",
       "bulletPoints": [
-        "Point 1 specifically on ${cleanTopic}",
-        "Point 2 reflecting ${cleanRules}",
-        "Point 3 with technical depth"
+        "In-depth technical point 1 specifically about ${cleanTopic}",
+        "In-depth technical point 2",
+        "In-depth technical point 3"
       ],
+      "codeSnippet": "# Optional relevant Python or SQL code",
       "speakerNotes": "Spoken remarks for instructor during presentation."
     }
   ]
 }`;
 
-  const rawOutput = await callLlmApi({ systemPrompt, userPrompt });
+  const rawOutput = await callLlmApi({ systemPrompt, userPrompt, temperature: 0.35 });
   const parsed = cleanJsonOutput(rawOutput);
 
   if (parsed && Array.isArray(parsed.slides) && parsed.slides.length > 0) {
@@ -2224,74 +2437,115 @@ Required JSON Schema:
           : Array.isArray(s.bulletPoints) && s.bulletPoints.length > 0
           ? s.bulletPoints
           : [
-              `Core principles and motivation of ${cleanTopic}`,
+              `Core principles and system motivation of ${cleanTopic}`,
               `Implementation specifications satisfying: ${cleanRules}`,
-              `System-level performance benchmarks and observations`,
+              `Empirical complexity benchmarks and runtime performance`,
             ];
         return {
           slideNo: idx + 1,
           slideNumber: idx + 1,
           title: s.title || `Slide ${idx + 1}: ${cleanTopic}`,
-          subtitle: s.subtitle || `Lecture Series • ${department}`,
+          subtitle: s.subtitle || `Lecture Module • ${department}`,
+          category: s.category || (idx === 0 ? 'OVERVIEW' : `MODULE 0${idx}`),
+          highlightPill: s.highlightPill || (idx === 0 ? 'CURRICULUM' : 'CORE PRINCIPLE'),
           bullets: rawBullets,
           bulletPoints: rawBullets,
-          speakerNotes: s.speakerNotes || `Explain the core concepts of ${cleanTopic} and highlight key exam points.`,
+          codeSnippet: s.codeSnippet || null,
+          speakerNotes: s.speakerNotes || `Explain the core concepts of ${cleanTopic} and highlight key examination takeaways.`,
         };
       }),
     };
   }
 
-  // Dynamic Rule-Enforcing Fallback for Slides
-  const slideTemplates = [
+  // Use Subtopic Bank if matched
+  if (matchedBank) {
+    return {
+      title: matchedBank.title,
+      topic: cleanTopic,
+      audience: cleanAudience,
+      department: department,
+      difficulty: ruleAnalysis.difficultyTier,
+      totalSlides: Math.min(count, matchedBank.slides.length),
+      slides: matchedBank.slides.slice(0, count).map((s, i) => ({
+        ...s,
+        slideNo: i + 1,
+        slideNumber: i + 1,
+        bulletPoints: s.bullets,
+      })),
+    };
+  }
+
+  // Topic-Tailored Fallback
+  const dynamicSlides = [
     {
-      title: `${cleanTopic}: Conceptual Overview`,
-      subtitle: `Unit Module • ${department} • Academic Year 2026-2027`,
+      title: `${cleanTopic}: Core Fundamentals & Motivation`,
+      subtitle: `System Overview • ${department} • Academic Year 2026-2027`,
+      category: 'FOUNDATIONS',
+      highlightPill: 'CURRICULUM CORE',
       bullets: [
-        `Fundamental purpose, scope, and engineering need for ${cleanTopic}`,
-        `Core problem solved: Eliminating inefficient bottlenecks and enforcing correctness`,
-        `Direct alignment with criteria: "${cleanRules}"`,
+        `Architectural purpose and foundational engineering motivation behind ${cleanTopic}`,
+        `Primary challenge solved: Eliminating performance bottlenecks and ensuring computational correctness`,
+        `Direct adherence to instructional guidelines: "${cleanRules}"`,
+        `Establishing formal invariants and state preconditions prior to execution`,
       ],
-      notes: `Introduce ${cleanTopic} by engaging the audience with a concrete real-world engineering challenge.`,
+      codeSnippet: `# Foundation Setup for ${cleanTopic}\ndef initialize_${cleanTopic.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 15) || 'system'}():\n    print("Initializing ${cleanTopic} module...")\n    return {"status": "ready", "topic": "${cleanTopic}"}`,
+      speakerNotes: `Begin by engaging the classroom with why ${cleanTopic} is essential in real software systems before diving into technical details.`,
     },
     {
-      title: 'Architectural Framework & Invariant Rules',
-      subtitle: 'System invariants, structural taxonomy, and state boundaries',
+      title: 'Architectural Mechanisms & Invariants',
+      subtitle: 'Internal data flow, memory representations, and constraints',
+      category: 'ARCHITECTURE',
+      highlightPill: 'SYSTEM INVARIANTS',
       bullets: [
-        `Critical mathematical invariants governing ${cleanTopic}`,
-        `Pre-condition and post-condition checks required for state integrity`,
-        `Handling adversarial edge conditions specified in: "${cleanRules}"`,
+        `Memory layout and structural organization governing ${cleanTopic}`,
+        `Pre-condition verification and defensive boundary validation`,
+        `Handling edge cases and degenerate distributions specified in: "${cleanRules}"`,
+        `Ensuring high CPU cache locality and minimal garbage collection pauses`,
       ],
-      notes: `Illustrate the architectural diagram on the board and emphasize invariant validation.`,
+      codeSnippet: `class ${cleanTopic.replace(/[^a-zA-Z0-9]/g, '') || 'Module'}Controller:\n    def __init__(self):\n        self.is_active = True\n        self.records = []\n    def process(self, item):\n        if item is not None:\n            self.records.append(item)`,
+      speakerNotes: `Walk students through the memory representation diagram. Explain what happens under high-concurrency loads.`,
     },
     {
-      title: 'Algorithmic Execution & Traversal Logic',
-      subtitle: 'Step-by-step state transformation and implementation rules',
+      title: 'Implementation Patterns & Execution Logic',
+      subtitle: 'Production code patterns, algorithms, and state transitions',
+      category: 'IMPLEMENTATION',
+      highlightPill: 'PRACTICAL CODE',
       bullets: [
-        `Modular implementation structure and memory allocation strategies`,
-        `Sequential walkthrough of primary operational routines in ${cleanTopic}`,
-        `Optimization techniques ensuring low latency and cache efficiency`,
+        `Production implementation patterns and clean code standards for ${cleanTopic}`,
+        `Step-by-step walkthrough of state transformations and error recovery`,
+        `Eliminating memory leaks, race conditions, and unhandled exceptions`,
+        `Optimized data structures ensuring predictable throughput`,
       ],
-      notes: `Walk through a concrete numeric example step-by-step so students observe state mutations.`,
+      codeSnippet: `# Core Execution Routine\ndef execute_task(inputs):\n    # Transform and validate records\n    return [x for x in inputs if x > 0]\n\nsample = [12, -4, 45, 0, 89]\nprint("Processed:", execute_task(sample))`,
+      speakerNotes: `Live code walkthrough: Show the clean pattern on screen and have students identify why defensive checks matter.`,
     },
     {
-      title: 'Performance Evaluation & Complexity Bounds',
-      subtitle: 'Asymptotic bounds, memory profiles, and trade-off matrix',
+      title: 'Complexity Benchmarks & Performance Trade-offs',
+      subtitle: 'Asymptotic time and space complexity evaluation',
+      category: 'COMPLEXITY',
+      highlightPill: 'BIG-O BOUNDS',
       bullets: [
-        `Theoretical asymptotic time complexity: Best, Average, and Worst Case`,
-        `Auxiliary memory overhead and space consumption bounds`,
-        `Comparative analysis contrasting ${cleanTopic} with alternative standard paradigms`,
+        `Time Complexity: Best Case O(1), Average Case O(log N), Worst Case O(N)`,
+        `Auxiliary Space Complexity: O(1) in-place vs O(N) auxiliary allocations`,
+        `Comparative analysis contrasting ${cleanTopic} against alternative standard paradigms`,
+        `System trade-offs: Throughput vs memory footprint vs implementation complexity`,
       ],
-      notes: `Contrast theoretical big-O notation with actual real-world hardware cache behavior.`,
+      codeSnippet: `# Asymptotic Bounds:\n# Direct Access:  O(1)\n# Search/Scan:    O(N)\n# Bulk Sort:      O(N log N)\n# Auxiliary Space: O(1)`,
+      speakerNotes: `Contrast theoretical Big-O notation with real-world latency profiles on modern multi-core processors.`,
     },
     {
-      title: 'Industrial Applications & Exam Summary',
-      subtitle: 'Enterprise deployment scenarios and key review takeaways',
+      title: 'Industrial Applications & Exam Viva Checklist',
+      subtitle: 'Production deployments and high-yield examination review',
+      category: 'EXAM REVIEW',
+      highlightPill: 'VIVA PREPARATION',
       bullets: [
-        `Production deployments in distributed databases, operating systems, and network kernels`,
-        `Summary of essential formulas and high-yield examination takeaways for ${cleanTopic}`,
-        `Assigned laboratory practice tasks and next session deliverables`,
+        `Enterprise deployments in cloud infrastructure, operating systems, and high-scale backends`,
+        `Essential formulas, invariant summaries, and key takeaways for ${cleanTopic}`,
+        `Oral viva question: How does ${cleanTopic} handle adversarial or scaled input sets?`,
+        `Practical laboratory assignment and deliverables for upcoming semester review`,
       ],
-      notes: `Summarize key lecture highlights and assign the related practical lab problem set.`,
+      codeSnippet: `# Viva Review Checklist:\n# 1. State Invariants\n# 2. Time & Space Bounds\n# 3. Defensive Edge Cases\n# 4. Industry Use Cases`,
+      speakerNotes: `Wrap up with viva-voce examination tips. Remind students of the primary distinction examiners look for.`,
     },
   ];
 
@@ -2301,13 +2555,12 @@ Required JSON Schema:
     audience: cleanAudience,
     department: department,
     difficulty: ruleAnalysis.difficultyTier,
-    totalSlides: Math.min(count, slideTemplates.length),
-    slides: slideTemplates.slice(0, count).map((s, i) => ({
+    totalSlides: Math.min(count, dynamicSlides.length),
+    slides: dynamicSlides.slice(0, count).map((s, i) => ({
       ...s,
       slideNo: i + 1,
       slideNumber: i + 1,
       bulletPoints: s.bullets,
-      speakerNotes: s.notes,
     })),
   };
 }

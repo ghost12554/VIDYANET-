@@ -12,6 +12,12 @@ import { readFileAsAttachment, downloadAttachment, formatFileSize } from '../../
 import { generateAssignmentPdf, downloadAssignmentPdf } from '../../utils/assignmentPdfGenerator';
 import { generateNotesPdf, downloadNotesPdf } from '../../utils/notesPdfGenerator';
 import {
+  PPT_THEMES,
+  generatePresentationPdf,
+  downloadPresentationPdf,
+  exportPresentationHtml,
+} from '../../utils/pptSlideGenerator';
+import {
   Bot,
   Sparkles,
   HelpCircle,
@@ -45,6 +51,11 @@ import {
   CheckCheck,
   Edit3,
   BookOpen,
+  Maximize2,
+  Minimize2,
+  Play,
+  Palette,
+  Monitor,
 } from 'lucide-react';
 
 export default function TeacherBotMarket() {
@@ -126,13 +137,17 @@ export default function TeacherBotMarket() {
   const [pptForm, setPptForm] = useState({
     topic: '',
     numSlides: 5,
+    theme: 'midnight',
     audience: 'SY.B.Sc AIML Undergraduates',
-    rules: 'Focus on clear academic explanations, clean visual structure, bullet points with bold keywords, and practical code/diagram notes.',
+    rules: 'Include architectural layer diagrams description, stride/padding formulas, mathematical intuition, and practical PyTorch code hints.',
     referenceDoc: null,
   });
   const [generatedPpt, setGeneratedPpt] = useState(null);
   const [isGeneratingPpt, setIsGeneratingPpt] = useState(false);
+  const [pptThinkingStage, setPptThinkingStage] = useState('');
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
+  const [isFullscreenPpt, setIsFullscreenPpt] = useState(false);
+  const [activePptTheme, setActivePptTheme] = useState('midnight');
 
   // 6. AI SUBMISSIONS ANALYZER STATE
   const [analyzerTargetAssign, setAnalyzerTargetAssign] = useState(assignments[0]?.id || '');
@@ -528,6 +543,7 @@ export default function TeacherBotMarket() {
     setPptForm({
       topic: 'Convolutional Neural Networks: Convolutions, Pooling & Feature Maps',
       numSlides: 5,
+      theme: 'midnight',
       audience: 'SY.B.Sc AIML Undergraduates',
       rules: 'Include architectural layer diagrams description, stride/padding formulas, mathematical intuition, and practical PyTorch code hints.',
       referenceDoc: {
@@ -541,11 +557,21 @@ export default function TeacherBotMarket() {
   const handleGeneratePpt = async (e) => {
     e.preventDefault();
     if (!pptForm.topic.trim()) {
-      alert('Topic is mandatory.');
+      alert('Slide Deck Topic is mandatory.');
       return;
     }
     setIsGeneratingPpt(true);
     setCurrentSlideIndex(0);
+
+    // Realistic pedagogical synthesis progress steps
+    setPptThinkingStage('Analyzing curriculum topic & pedagogical structure...');
+    await new Promise((r) => setTimeout(r, 450));
+    setPptThinkingStage('Synthesizing technical diagrams, formulas & code cards...');
+    await new Promise((r) => setTimeout(r, 500));
+    setPptThinkingStage('Drafting professor speaker remarks & discussion prompts...');
+    await new Promise((r) => setTimeout(r, 450));
+    setPptThinkingStage('Polishing high-impact 16:9 visual themes & styling...');
+
     try {
       const pptResult = await generateAIPpt({
         topic: pptForm.topic.trim(),
@@ -556,6 +582,7 @@ export default function TeacherBotMarket() {
       });
 
       setGeneratedPpt({ ...pptResult, _generatedAt: Date.now() });
+      setActivePptTheme(pptForm.theme || 'midnight');
 
       saveBotHistoryItem({
         panel: 'PPT Generator',
@@ -568,25 +595,18 @@ export default function TeacherBotMarket() {
       alert('Error generating presentation. Please try again.');
     } finally {
       setIsGeneratingPpt(false);
+      setPptThinkingStage('');
     }
   };
 
-  const handleDownloadPptx = () => {
+  const handleDownloadPresentationPdf = () => {
     if (!generatedPpt) return;
-    const content = `INDRA UNIVERSITY FACULTY OF TECHNOLOGY\nPRESENTATION DECK: ${generatedPpt.title}\nTopic: ${generatedPpt.topic}\nAudience: ${pptForm.audience}\n\n` +
-      generatedPpt.slides.map((s) => (
-        `===============================\nSLIDE ${s.slideNo}: ${s.title}\n===============================\n` +
-        s.bullets.map((b) => `• ${b}`).join('\n') +
-        `\n\nSPEAKER NOTES:\n${s.speakerNotes}\n\n`
-      )).join('\n');
+    downloadPresentationPdf(generatedPpt, activePptTheme);
+  };
 
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${generatedPpt.topic.replace(/[^a-zA-Z0-9]/g, '_')}_Presentation.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleExportHtmlDeck = () => {
+    if (!generatedPpt) return;
+    exportPresentationHtml(generatedPpt, activePptTheme);
   };
 
   // --- 6. AI SUBMISSIONS ANALYZER HANDLER ---
@@ -2025,19 +2045,39 @@ export default function TeacherBotMarket() {
             </button>
           </div>
 
-          <form onSubmit={handleGeneratePpt} className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-            <div>
+          <form onSubmit={handleGeneratePpt} className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+            <div className="md:col-span-2">
               <label className="block font-semibold text-slate-300 mb-1">
                 Slide Deck Topic <span className="text-rose-400 font-bold">* (Mandatory)</span>
               </label>
               <input
                 type="text"
                 required
-                placeholder="e.g. Convolutional Neural Networks & Feature Maps"
+                placeholder="e.g. Convolutional Neural Networks: Architecture, Kernels & Pooling"
                 value={pptForm.topic}
                 onChange={(e) => setPptForm({ ...pptForm, topic: e.target.value })}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
               />
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-300 mb-1">
+                Visual Theme
+              </label>
+              <select
+                value={pptForm.theme || 'midnight'}
+                onChange={(e) => {
+                  setPptForm({ ...pptForm, theme: e.target.value });
+                  setActivePptTheme(e.target.value);
+                }}
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-semibold focus:outline-none focus:border-purple-500"
+              >
+                {Object.keys(PPT_THEMES).map((tId) => (
+                  <option key={tId} value={tId}>
+                    {PPT_THEMES[tId].name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
@@ -2047,40 +2087,80 @@ export default function TeacherBotMarket() {
               <input
                 type="number"
                 min={3}
-                max={15}
+                max={10}
                 value={pptForm.numSlides}
                 onChange={(e) => setPptForm({ ...pptForm, numSlides: e.target.value })}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
               />
             </div>
 
-            <div>
+            <div className="md:col-span-4">
               <label className="block font-semibold text-slate-300 mb-1">
                 Target Audience
               </label>
               <input
                 type="text"
+                placeholder="e.g. SY.B.Sc AIML Undergraduates • Division A"
                 value={pptForm.audience}
                 onChange={(e) => setPptForm({ ...pptForm, audience: e.target.value })}
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
               />
             </div>
 
-            <div className="md:col-span-3">
-              <label className="block font-semibold text-slate-300 mb-1">
-                Rules & Presentation Style Criteria (Difficulty, Structure & Topics to Emphasize)
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Include architectural breakdown, mathematical formulas, code snippet slides, and clean summary tables..."
+            <div className="md:col-span-4">
+              <div className="flex items-center justify-between mb-1">
+                <label className="font-semibold text-slate-300">
+                  Presentation Style & Pedagogical Criteria
+                </label>
+                <span className="text-[11px] text-slate-400">Click a preset to insert slide instructions</span>
+              </div>
+              <textarea
+                rows={2}
+                placeholder="Specify desired slide breakdown, technical depth, diagrams, math formulas, code examples, or exam focus..."
                 value={pptForm.rules || ''}
                 onChange={(e) => setPptForm({ ...pptForm, rules: e.target.value })}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 leading-relaxed"
               />
+
+              {/* Quick Preset Buttons */}
+              <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                {[
+                  {
+                    label: 'Architecture & Diagrams',
+                    prompt: 'Include system architecture breakdown, memory layout description, and multi-component block diagrams.',
+                  },
+                  {
+                    label: 'Code Walkthrough & Syntax',
+                    prompt: 'Provide complete Python implementation snippets, function signatures, and step-by-step execution walkthrough.',
+                  },
+                  {
+                    label: 'Mathematical Derivations',
+                    prompt: 'Derive mathematical formulas, stride/padding calculations, output dimensions, and formal invariant bounds.',
+                  },
+                  {
+                    label: 'High-Yield Viva Checklist',
+                    prompt: 'Include a dedicated oral viva review slide with common examiner questions, model answers, and student traps.',
+                  },
+                ].map((preset, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() =>
+                      setPptForm((prev) => ({
+                        ...prev,
+                        rules: prev.rules ? `${prev.rules}\n${preset.prompt}` : preset.prompt,
+                      }))
+                    }
+                    className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-[11px] text-slate-300 hover:text-white transition"
+                  >
+                    + {preset.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* File Upload */}
-            <div className="md:col-span-3">
+            <div className="md:col-span-4">
               <label className="block font-semibold text-slate-300 mb-1">
                 Upload Reference Slide Outline / Lecture Document (Optional)
               </label>
@@ -2113,16 +2193,16 @@ export default function TeacherBotMarket() {
               </div>
             </div>
 
-            <div className="md:col-span-3 flex justify-end pt-2">
+            <div className="md:col-span-4 flex justify-end pt-2">
               <button
                 type="submit"
                 disabled={isGeneratingPpt}
-                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold shadow-lg shadow-purple-600/30 flex items-center gap-2"
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold shadow-lg shadow-purple-600/30 flex items-center gap-2 transition"
               >
                 {isGeneratingPpt ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Synthesizing Presentation with LLaMA 3.3...</span>
+                    <span>Synthesizing Academic Presentation...</span>
                   </>
                 ) : (
                   <>
@@ -2134,67 +2214,384 @@ export default function TeacherBotMarket() {
             </div>
           </form>
 
-          {/* Interactive Slides Preview */}
+          {/* DELIBERATE THINKING & PROGRESS BANNER */}
+          {isGeneratingPpt && (
+            <div className="p-5 rounded-2xl bg-indigo-950/60 border border-indigo-500/40 space-y-3 animate-pulse">
+              <div className="flex items-center justify-between text-xs font-semibold text-indigo-300">
+                <span className="flex items-center gap-2">
+                  <RefreshCw className="w-4 h-4 animate-spin text-purple-400" />
+                  AI Cognitive Reasoning & Presentation Design in Progress...
+                </span>
+                <span className="font-mono text-purple-300">Active Thought Process</span>
+              </div>
+              <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
+                <div className="bg-gradient-to-r from-purple-500 to-indigo-500 h-2 rounded-full w-3/4 animate-pulse transition-all duration-500"></div>
+              </div>
+              <p className="text-xs text-slate-300 font-mono">
+                {pptThinkingStage || 'Synthesizing technical slides, diagrams, and code snippets...'}
+              </p>
+            </div>
+          )}
+
+          {/* INTERACTIVE SLIDES PREVIEW & EXPORT ACTIONS */}
           {generatedPpt && (
-            <div className="mt-6 p-6 rounded-3xl bg-slate-950/80 border border-purple-500/30 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
+            <div className="mt-6 p-6 rounded-3xl bg-slate-950/90 border border-purple-500/30 shadow-2xl space-y-5">
+              {/* Toolbar */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-slate-800 gap-3">
                 <div>
-                  <h4 className="text-base font-bold text-white">{generatedPpt.title}</h4>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold">
+                      16:9 Academic Presentation Deck
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700/80 text-[10px] text-slate-400">
+                      {generatedPpt.slides.length} Widescreen Slides
+                    </span>
+                  </div>
+                  <h4 className="text-base font-bold text-white mt-1">{generatedPpt.title}</h4>
                   <p className="text-xs text-slate-400">
-                    {generatedPpt.slides.length} Slides • Target: {pptForm.audience}
+                    Topic: {generatedPpt.topic} • Target Audience: {pptForm.audience}
                   </p>
                 </div>
 
-                <button
-                  onClick={handleDownloadPptx}
-                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-purple-600/30"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download .PPTX / Text Deck</span>
-                </button>
-              </div>
-
-              {/* Carousel Slide Viewer */}
-              {generatedPpt.slides[currentSlideIndex] && (
-                <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-900 to-indigo-950/70 border border-slate-800 shadow-xl space-y-4">
-                  <div className="flex items-center justify-between text-purple-300 text-xs font-semibold">
-                    <span>Slide {currentSlideIndex + 1} of {generatedPpt.slides.length}</span>
-                    <span className="font-mono text-[10px] text-slate-400">INDIRA UMS ACADEMIC LECTURE</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Theme Switcher */}
+                  <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700 px-2.5 py-1 rounded-xl text-xs">
+                    <Palette className="w-3.5 h-3.5 text-purple-400" />
+                    <select
+                      value={activePptTheme}
+                      onChange={(e) => setActivePptTheme(e.target.value)}
+                      className="bg-transparent text-white text-xs font-semibold focus:outline-none"
+                    >
+                      {Object.keys(PPT_THEMES).map((tId) => (
+                        <option key={tId} value={tId} className="bg-slate-900 text-white">
+                          {PPT_THEMES[tId].name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
-                  <h3 className="text-xl font-extrabold text-white">
-                    {generatedPpt.slides[currentSlideIndex].title}
-                  </h3>
+                  {/* Present Fullscreen */}
+                  <button
+                    onClick={() => setIsFullscreenPpt(true)}
+                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold border border-slate-700 flex items-center gap-1.5 transition"
+                    title="Launch Fullscreen Presentation Mode"
+                  >
+                    <Play className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Present</span>
+                  </button>
 
-                  <ul className="space-y-2.5 text-slate-200 text-sm list-disc list-inside">
-                    {generatedPpt.slides[currentSlideIndex].bullets.map((b, bIdx) => (
-                      <li key={bIdx} className="leading-relaxed">{b}</li>
-                    ))}
-                  </ul>
+                  {/* Download 16:9 PDF */}
+                  <button
+                    onClick={handleDownloadPresentationPdf}
+                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-purple-600/30 transition"
+                    title="Download Official 16:9 Widescreen Presentation PDF"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download 16:9 PDF</span>
+                  </button>
 
-                  {generatedPpt.slides[currentSlideIndex].speakerNotes && (
-                    <div className="mt-4 p-3 rounded-xl bg-slate-950/80 border border-purple-500/20 text-xs text-indigo-300 font-mono">
-                      <strong>Speaker Notes:</strong> {generatedPpt.slides[currentSlideIndex].speakerNotes}
+                  {/* Export Interactive HTML */}
+                  <button
+                    onClick={handleExportHtmlDeck}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 text-xs font-bold border border-indigo-500/30 flex items-center gap-1.5 transition"
+                    title="Export Standalone Web Presentation (.html)"
+                  >
+                    <Monitor className="w-3.5 h-3.5" />
+                    <span>Export Web Deck</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 16:9 Carousel Slide Canvas */}
+              {generatedPpt.slides[currentSlideIndex] && (() => {
+                const s = generatedPpt.slides[currentSlideIndex];
+                const theme = PPT_THEMES[activePptTheme] || PPT_THEMES.midnight;
+
+                return (
+                  <div
+                    className="p-6 sm:p-8 rounded-3xl border shadow-2xl space-y-5 transition-all duration-300"
+                    style={{
+                      backgroundColor: `rgb(${theme.cardBg.join(',')})`,
+                      borderColor: `rgb(${theme.cardBorder.join(',')})`,
+                    }}
+                  >
+                    {/* Slide Top Bar */}
+                    <div className="flex items-center justify-between text-xs pb-3 border-b border-slate-700/60">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white shadow"
+                          style={{ backgroundColor: `rgb(${theme.primary.join(',')})` }}
+                        >
+                          {s.category || `MODULE 0${currentSlideIndex + 1}`}
+                        </span>
+                        {s.highlightPill && (
+                          <span
+                            className="px-2 py-0.5 rounded-md border text-[10px] font-mono font-bold"
+                            style={{
+                              borderColor: `rgb(${theme.cardBorder.join(',')})`,
+                              color: `rgb(${theme.accent.join(',')})`,
+                            }}
+                          >
+                            {s.highlightPill}
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-mono text-[11px] text-slate-400">
+                        Slide {currentSlideIndex + 1} of {generatedPpt.slides.length}
+                      </span>
                     </div>
-                  )}
 
-                  {/* Slide Navigation Controls */}
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-800/80">
+                    {/* Title & Subtitle */}
+                    <div>
+                      <h3
+                        className="text-xl sm:text-2xl font-extrabold tracking-tight leading-tight"
+                        style={{ color: `rgb(${theme.textPrimary.join(',')})` }}
+                      >
+                        {s.title}
+                      </h3>
+                      {s.subtitle && (
+                        <p
+                          className="text-xs sm:text-sm mt-1"
+                          style={{ color: `rgb(${theme.textSecondary.join(',')})` }}
+                        >
+                          {s.subtitle}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Dual-Column Card Content Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-1">
+                      {/* Left: Core Technical Concepts */}
+                      <div className="p-4 rounded-2xl bg-black/25 border border-slate-700/60 space-y-3">
+                        <span
+                          className="text-[11px] font-bold tracking-wider uppercase block"
+                          style={{ color: `rgb(${theme.primary.join(',')})` }}
+                        >
+                          Core Technical Concepts
+                        </span>
+                        <ul className="space-y-2.5 text-xs leading-relaxed">
+                          {(s.bullets || s.bulletPoints || []).map((b, bIdx) => (
+                            <li key={bIdx} className="flex items-start gap-2 text-slate-300">
+                              <span
+                                className="font-bold text-sm leading-none"
+                                style={{ color: `rgb(${theme.primary.join(',')})` }}
+                              >
+                                •
+                              </span>
+                              <span>{b}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Right: Code Block OR Architecture Insights */}
+                      <div className="p-4 rounded-2xl bg-black/25 border border-slate-700/60 space-y-3">
+                        {s.codeSnippet ? (
+                          <>
+                            <div className="flex items-center justify-between">
+                              <span
+                                className="text-[11px] font-bold tracking-wider uppercase"
+                                style={{ color: `rgb(${theme.accent.join(',')})` }}
+                              >
+                                Reference Implementation
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <span className="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>
+                                <span className="w-2 h-2 rounded-full bg-amber-500 inline-block"></span>
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+                              </div>
+                            </div>
+                            <pre
+                              className="p-3 rounded-xl font-mono text-[11px] overflow-x-auto leading-relaxed border border-slate-800"
+                              style={{
+                                backgroundColor: `rgb(${theme.codeBg.join(',')})`,
+                                color: `rgb(${theme.codeText.join(',')})`,
+                              }}
+                            >
+                              {s.codeSnippet}
+                            </pre>
+                          </>
+                        ) : (
+                          <>
+                            <span
+                              className="text-[11px] font-bold tracking-wider uppercase block"
+                              style={{ color: `rgb(${theme.accent.join(',')})` }}
+                            >
+                              Architecture & Insights
+                            </span>
+                            <ul className="space-y-2.5 text-xs leading-relaxed">
+                              {(s.insights || [
+                                'High throughput, deterministic memory layout.',
+                                'Invariant Guarantee: Pre-condition checks enforced prior to state mutations.',
+                                'Exam Focus: Justify asymptotic bounds during faculty oral examinations.',
+                              ]).map((ins, insIdx) => (
+                                <li key={insIdx} className="flex items-start gap-2 text-slate-300">
+                                  <span
+                                    className="font-bold text-sm leading-none"
+                                    style={{ color: `rgb(${theme.accent.join(',')})` }}
+                                  >
+                                    •
+                                  </span>
+                                  <span>{ins}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Professor Speaker Remarks */}
+                    {s.speakerNotes && (
+                      <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-700/70 text-xs text-indigo-300 font-mono space-y-1">
+                        <strong className="text-purple-300 font-bold block text-[11px] uppercase tracking-wider">
+                          Professor Lecture Remarks:
+                        </strong>
+                        <p className="text-slate-300 font-sans leading-relaxed text-xs">
+                          {s.speakerNotes}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Navigation Carousel Footer */}
+                    <div className="flex items-center justify-between pt-4 border-t border-slate-700/60">
+                      <button
+                        disabled={currentSlideIndex === 0}
+                        onClick={() => setCurrentSlideIndex((prev) => Math.max(0, prev - 1))}
+                        className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 text-xs font-semibold transition"
+                      >
+                        ← Previous Slide
+                      </button>
+
+                      <div className="flex items-center gap-1.5">
+                        {generatedPpt.slides.map((_, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setCurrentSlideIndex(idx)}
+                            className={`h-2.5 rounded-full transition-all ${
+                              idx === currentSlideIndex
+                                ? 'bg-purple-400 w-6'
+                                : 'bg-slate-700 hover:bg-slate-500 w-2.5'
+                            }`}
+                          />
+                        ))}
+                      </div>
+
+                      <button
+                        disabled={currentSlideIndex === generatedPpt.slides.length - 1}
+                        onClick={() =>
+                          setCurrentSlideIndex((prev) =>
+                            Math.min(generatedPpt.slides.length - 1, prev + 1)
+                          )
+                        }
+                        className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 text-xs font-semibold transition"
+                      >
+                        Next Slide →
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* FULLSCREEN PRESENTATION MODAL OVERLAY */}
+              {isFullscreenPpt && generatedPpt && (
+                <div className="fixed inset-0 z-50 bg-black/95 flex flex-col justify-between p-6 animate-fadeIn">
+                  {/* Top Bar */}
+                  <div className="flex items-center justify-between text-xs text-slate-400 pb-3 border-b border-slate-800">
+                    <span className="font-bold text-white text-sm">
+                      {generatedPpt.title} • {generatedPpt.slides[currentSlideIndex]?.category}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-purple-400 text-xs font-bold">
+                        Slide {currentSlideIndex + 1} / {generatedPpt.slides.length}
+                      </span>
+                      <button
+                        onClick={() => setIsFullscreenPpt(false)}
+                        className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1"
+                      >
+                        <Minimize2 className="w-3.5 h-3.5" />
+                        <span>Exit (Esc)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Main Slide Content Canvas */}
+                  <div className="max-w-5xl mx-auto w-full my-auto space-y-6">
+                    <div className="space-y-2">
+                      <span className="px-3 py-1 rounded-full bg-purple-600 text-white text-xs font-bold tracking-wider uppercase inline-block">
+                        {generatedPpt.slides[currentSlideIndex]?.category || 'LECTURE'}
+                      </span>
+                      <h2 className="text-3xl sm:text-4xl font-black text-white">
+                        {generatedPpt.slides[currentSlideIndex]?.title}
+                      </h2>
+                      <p className="text-base text-slate-300">
+                        {generatedPpt.slides[currentSlideIndex]?.subtitle}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 space-y-4">
+                        <h4 className="text-xs font-bold text-purple-400 uppercase tracking-wider">
+                          Key Technical Points
+                        </h4>
+                        <ul className="space-y-3 text-sm text-slate-200 leading-relaxed">
+                          {(
+                            generatedPpt.slides[currentSlideIndex]?.bullets ||
+                            generatedPpt.slides[currentSlideIndex]?.bulletPoints ||
+                            []
+                          ).map((b, idx) => (
+                            <li key={idx} className="flex items-start gap-2.5">
+                              <span className="text-purple-400 font-bold">•</span>
+                              <span>{b}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 space-y-4">
+                        {generatedPpt.slides[currentSlideIndex]?.codeSnippet ? (
+                          <>
+                            <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
+                              Code Walkthrough
+                            </h4>
+                            <pre className="p-4 rounded-2xl bg-black font-mono text-xs text-emerald-300 overflow-x-auto leading-relaxed border border-slate-800">
+                              {generatedPpt.slides[currentSlideIndex]?.codeSnippet}
+                            </pre>
+                          </>
+                        ) : (
+                          <>
+                            <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+                              Architecture Insights
+                            </h4>
+                            <p className="text-sm text-slate-300 leading-relaxed">
+                              {generatedPpt.slides[currentSlideIndex]?.speakerNotes ||
+                                'Demonstrate the theoretical principles and practical applications live to the classroom.'}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Fullscreen Navigation Bar */}
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-800 max-w-5xl mx-auto w-full">
                     <button
                       disabled={currentSlideIndex === 0}
                       onClick={() => setCurrentSlideIndex((prev) => Math.max(0, prev - 1))}
-                      className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 text-xs font-semibold"
+                      className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold disabled:opacity-30 transition"
                     >
-                      ← Previous Slide
+                      ← Previous
                     </button>
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-2">
                       {generatedPpt.slides.map((_, idx) => (
                         <button
                           key={idx}
                           onClick={() => setCurrentSlideIndex(idx)}
-                          className={`w-2.5 h-2.5 rounded-full transition ${
-                            idx === currentSlideIndex ? 'bg-purple-400 w-5' : 'bg-slate-700 hover:bg-slate-500'
+                          className={`h-2.5 rounded-full transition-all ${
+                            idx === currentSlideIndex
+                              ? 'bg-purple-400 w-8'
+                              : 'bg-slate-700 hover:bg-slate-500 w-2.5'
                           }`}
                         />
                       ))}
@@ -2202,10 +2599,14 @@ export default function TeacherBotMarket() {
 
                     <button
                       disabled={currentSlideIndex === generatedPpt.slides.length - 1}
-                      onClick={() => setCurrentSlideIndex((prev) => Math.min(generatedPpt.slides.length - 1, prev + 1))}
-                      className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-40 text-xs font-semibold"
+                      onClick={() =>
+                        setCurrentSlideIndex((prev) =>
+                          Math.min(generatedPpt.slides.length - 1, prev + 1)
+                        )
+                      }
+                      className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold disabled:opacity-30 transition"
                     >
-                      Next Slide →
+                      Next →
                     </button>
                   </div>
                 </div>
