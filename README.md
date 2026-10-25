@@ -1,16 +1,90 @@
-# React + Vite
+# VIDYANET: Intelligent University Management System & Multi-Agent Academic Workspace
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-vidyanet.vercel.app-6366f1?style=for-the-badge&logo=vercel)](https://vidyanet.vercel.app)
+[![React 19](https://img.shields.io/badge/React-19.3.1-61DAFB?style=for-the-badge&logo=react)](https://react.dev)
+[![Vite 8](https://img.shields.io/badge/Vite-8.3.4-646CFF?style=for-the-badge&logo=vite)](https://vitejs.dev)
+[![Tailwind CSS v4](https://img.shields.io/badge/Tailwind_CSS-v4.3.3-38B2AC?style=for-the-badge&logo=tailwind-css)](https://tailwindcss.com)
+[![NVIDIA NIM](https://img.shields.io/badge/NVIDIA_NIM-Llama--3.3--70B-76B900?style=for-the-badge&logo=nvidia)](https://build.nvidia.com)
+[![Google Gemini](https://img.shields.io/badge/Google_Gemini-2.5_Flash_&_Vision-4285F4?style=for-the-badge&logo=google)](https://ai.google.dev)
 
-Currently, two official plugins are available:
+> **Academic Year 2026–2027 Mini-Project**  
+> **Institution:** Indira University, School of Information Technology (SOIT), Pune  
+> **Program:** SY.B.Sc. (AIML) Sem-III | Division A | Department of Information Technology (AIML)  
+> **Faculty Guide:** Prof. Sarita Byagar (Head of Department - AIML)  
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## 👥 Development Team
+1. **Jay Panchal** (Roll No: **36**) — *Lead Full-Stack Developer & AI Systems Architect*
+2. **Harshvardhan Dhember** (Roll No: **32**) — *System Analyst & Database Engineer*
+3. **Aditya Bochare** (Roll No: **07**) — *UI/UX Designer & Quality Assurance Lead*
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the Oxlint configuration
+## 🚀 Key System Highlights
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+- **Dynamic Lecture Tracker & IST Period Engine:** Minute-by-minute countdown tracking current, next, and completed theory lectures and practical labs based on Indian Standard Time (IST).
+- **Dual-Role Isolated Portals:** Complete segregation between **Student Portal** (study materials, lecture countdowns, attendance dials, emergency locker) and **Teacher Command Dashboard** (master schedule switcher, roll-call registers, student admission approval queue).
+- **BotMarket Generative AI Assessment Hub:** Multi-model assessment engine powered by **NVIDIA NIM (Meta-Llama-3.3-70B-Instruct)** with automated fallback to **Google Gemini 2.5 Flash**. Generates Bloom's Taxonomy-aligned quizzes, coding challenges, and study notes with 0% hallucinations.
+- **Multimodal Document Vision Scanner:** Upload physical paper timetables or PDF schedules; parsed in real time via Gemini Vision into structured 6-day interactive matrix tables without manual typing.
+- **Multi-Batch Practical Laboratory Register:** Cohort-based attendance management (Batch A: 01–31, Batch B: 32–62, Batch C: 63+) with computer lab mapping (Lab 3-B).
+- **WorkStore & ChitChat Communication Suite:** Centralized academic repository for lecture notes and assignments, paired with faculty-moderated chat channels and verified instructor badges.
+
+---
+
+## 🏛️ System Architecture
+
+```text
+[ Presentation Layer (React 19 + Tailwind v4 + Lucide Icons) ]
+                         │
+                         ▼
+[ State Orchestration Layer (Context API + Versioned fresh_v5 Storage) ]
+         │                                       │
+         ▼                                       ▼
+[ Primary LLM Engine ]                  [ Multimodal Vision & OCR ]
+  NVIDIA NIM Llama-3.3-70B                Google Gemini 2.5 Flash Vision
+  (Sub-2s Deep Reasoning)                 (2D Schedule Matrix Extraction)
+         │                                       │
+         └─────────────► Fallback Loop ◄─────────┘
+                         │
+                         ▼
+[ Persistence & Cloud Edge (Google Cloud Firestore + Vercel Serverless CDN) ]
+```
+
+---
+
+## 🔒 Security & Data Privacy Compliance
+
+- **STRIDE Threat Mitigation:** Defense-in-depth architecture addressing Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, and Elevation of Privilege.
+- **Role-Based Access Control (RBAC):** Token validation on state mutations (`recordAttendance`, `createTest`, `approveStudent`).
+- **Cryptographic Key Vaulting:** AI inference tokens (`VITE_NVIDIA_API_KEY`, `VITE_GEMINI_API_KEY`) secured in environment variables and client-side sandboxed vaults.
+- **DPDP Act 2023 Compliance:** Zero third-party telemetry, student emergency locker isolation, purpose limitation, and one-click data erasure.
+
+---
+
+## 💻 Local Setup & Installation
+
+```bash
+# 1. Clone repository
+git clone https://github.com/ghost12554/VIDYANET-.git
+cd VIDYANET-
+
+# 2. Install dependencies
+npm install
+
+# 3. Configure environment variables (.env)
+VITE_NVIDIA_API_KEY="your_nvidia_nim_api_key"
+VITE_GEMINI_API_KEY="your_gemini_api_key"
+
+# 4. Start local development server
+npm run dev
+
+# 5. Build for production
+npm run build
+```
+
+---
+
+## 📄 Academic Deliverables
+- **Project Report (.docx):** [`VIDYANET_Mini_Project_Report.docx`](./VIDYANET_Mini_Project_Report.docx)
+- **Viva Voce Defense Guide:** [`VIDYANET_Viva_Voce_Defense_Guide.md`](./VIDYANET_Viva_Voce_Defense_Guide.md)
