@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useCollege } from '../../context/CollegeContext';
 import {
   MessageSquare,
@@ -27,6 +27,13 @@ import {
   User,
   UserPlus,
   Building,
+  PhoneCall,
+  PhoneForwarded,
+  Delete,
+  Hash,
+  Clock,
+  BadgeCheck,
+  Sparkles,
 } from 'lucide-react';
 import {
   readFileAsAttachment,
@@ -70,8 +77,61 @@ export default function ChitChatView() {
 
   // Contact / New Chat Modal State (start chat by phone or with faculty)
   const [showNewChatModal, setShowNewChatModal] = useState(false);
+  const [modalTab, setModalTab] = useState('dialer'); // 'dialer' | 'directory' | 'recent'
+  const [dialedDigits, setDialedDigits] = useState('');
+  const [customContactName, setCustomContactName] = useState('');
+  const [customContactRole, setCustomContactRole] = useState('Parent / Guardian');
+  const [recentDialed, setRecentDialed] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('indira_ums_recent_dialed') || '[]');
+    } catch (e) {
+      return [];
+    }
+  });
+
+  // Voice Call Screen State
+  const [activeCall, setActiveCall] = useState(null);
+  const [callTimer, setCallTimer] = useState(0);
+  const [isCallMuted, setIsCallMuted] = useState(false);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
+
   const [contactSearchQuery, setContactSearchQuery] = useState('');
   const [contactTypeFilter, setContactTypeFilter] = useState('faculty'); // 'faculty' | 'students'
+
+  // Dialpad Key Definitions
+  const DIALPAD_KEYS = [
+    { digit: '1', sub: ' ' },
+    { digit: '2', sub: 'ABC' },
+    { digit: '3', sub: 'DEF' },
+    { digit: '4', sub: 'GHI' },
+    { digit: '5', sub: 'JKL' },
+    { digit: '6', sub: 'MNO' },
+    { digit: '7', sub: 'PQRS' },
+    { digit: '8', sub: 'TUV' },
+    { digit: '9', sub: 'WXYZ' },
+    { digit: '*', sub: ' ' },
+    { digit: '0', sub: '+' },
+    { digit: '#', sub: ' ' },
+  ];
+
+  // Call timer effect
+  useEffect(() => {
+    let interval;
+    if (activeCall) {
+      interval = setInterval(() => {
+        setCallTimer((prev) => prev + 1);
+      }, 1000);
+    } else {
+      setCallTimer(0);
+    }
+    return () => clearInterval(interval);
+  }, [activeCall]);
+
+  const formatCallTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   // Group creation modal state (for teachers)
   const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -167,6 +227,129 @@ export default function ChitChatView() {
     setShowNewChatModal(false);
   };
 
+  // Handle dialpad digit tap
+  const handleDialPadClick = (digit) => {
+    if (dialedDigits.length < 12) {
+      setDialedDigits((prev) => prev + digit);
+    }
+  };
+
+  const handleBackspace = () => {
+    setDialedDigits((prev) => prev.slice(0, -1));
+  };
+
+  const handleClearDialer = () => {
+    setDialedDigits('');
+    setCustomContactName('');
+  };
+
+  // Find matches among registered students or teachers by phone
+  const cleanDigits = (dialedDigits || '').replace(/\D/g, '');
+  const matchedStudent =
+    cleanDigits.length >= 4
+      ? (students || []).find((s) => (s.phone || '').replace(/\D/g, '').includes(cleanDigits))
+      : null;
+  const matchedTeacher =
+    cleanDigits.length >= 4
+      ? (teachers || []).find((t) => (t.phone || '').replace(/\D/g, '').includes(cleanDigits))
+      : null;
+
+  // Dial & Start Chat Handler
+  const handleDialNumberAndChat = (
+    phoneToUse,
+    contactName,
+    isTeacher = false,
+    role = 'Parent / Guardian'
+  ) => {
+    const rawNumber = (phoneToUse || dialedDigits || '').replace(/\D/g, '');
+    if (rawNumber.length < 10) {
+      alert('Please enter or dial a valid 10-digit Indian phone number.');
+      return;
+    }
+
+    const tenDigit = rawNumber.slice(-10);
+    const fullFormattedPhone = `+91 ${tenDigit.slice(0, 5)} ${tenDigit.slice(5)}`;
+
+    // Check if matched
+    const foundStud = (students || []).find((s) =>
+      (s.phone || '').replace(/\D/g, '').endsWith(tenDigit)
+    );
+    const foundTeach = (teachers || []).find((t) =>
+      (t.phone || '').replace(/\D/g, '').endsWith(tenDigit)
+    );
+
+    let finalContact;
+    if (foundStud) {
+      finalContact = {
+        contactId: foundStud.id,
+        contactName: foundStud.name,
+        contactPhone: foundStud.phone || fullFormattedPhone,
+        avatar: foundStud.avatar,
+        isTeacher: false,
+        department: foundStud.department || 'Information Technology',
+      };
+    } else if (foundTeach) {
+      finalContact = {
+        contactId: foundTeach.id,
+        contactName: foundTeach.name,
+        contactPhone: foundTeach.phone || fullFormattedPhone,
+        avatar: foundTeach.avatar,
+        isTeacher: true,
+        department: foundTeach.department || 'Faculty',
+      };
+    } else {
+      const finalName = contactName?.trim() || `Contact (${fullFormattedPhone})`;
+      finalContact = {
+        contactId: `ext-${tenDigit}`,
+        contactName: finalName,
+        contactPhone: fullFormattedPhone,
+        avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(finalName)}`,
+        isTeacher: isTeacher || role === 'Faculty',
+        department: role || 'Institutional Contact',
+      };
+    }
+
+    // Record in recent dialed
+    setRecentDialed((prev) => {
+      const updated = [
+        {
+          phone: fullFormattedPhone,
+          name: finalContact.contactName,
+          role: foundStud ? 'Student' : foundTeach ? 'Faculty' : role,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+        ...prev.filter((r) => r.phone !== fullFormattedPhone),
+      ].slice(0, 10);
+      try {
+        localStorage.setItem('indira_ums_recent_dialed', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    if (createDirectChat) {
+      const newId = createDirectChat(finalContact);
+      setActiveChatId(newId);
+    }
+
+    setShowNewChatModal(false);
+    setDialedDigits('');
+    setCustomContactName('');
+  };
+
+  // Voice Call Launcher
+  const handleInitiateCall = (targetName, targetPhone, avatar) => {
+    setActiveCall({
+      name: targetName || 'Institutional Contact',
+      phone: targetPhone || '+91 98201 44521',
+      avatar:
+        avatar ||
+        'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&h=200&q=80',
+    });
+    setCallTimer(0);
+    setIsCallMuted(false);
+    setShowNewChatModal(false);
+  };
+
   return (
     <div className="bg-slate-900/90 rounded-3xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col md:flex-row h-[760px] animate-fadeIn">
       {/* 1. LEFT SIDEBAR: CHAT & PHONE DIRECTORY */}
@@ -186,11 +369,27 @@ export default function ChitChatView() {
           </div>
 
           <div className="flex items-center gap-1.5">
+            {/* Dial +91 / Add Contact Button */}
+            <button
+              onClick={() => {
+                setModalTab('dialer');
+                setShowNewChatModal(true);
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/40 text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+              title="Dial any +91 mobile number to add contact or chat"
+            >
+              <PhoneCall className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">+91 Dial</span>
+            </button>
+
             {/* New Chat Button (Contact & Phone directory) */}
             <button
-              onClick={() => setShowNewChatModal(true)}
-              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 transition"
-              title="Start Chat with Teacher or Student (by phone number)"
+              onClick={() => {
+                setModalTab('directory');
+                setShowNewChatModal(true);
+              }}
+              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition cursor-pointer"
+              title="Search University Directory"
             >
               <UserPlus className="w-4 h-4" />
             </button>
@@ -198,7 +397,7 @@ export default function ChitChatView() {
             {userRole === 'teacher' && (
               <button
                 onClick={() => setShowCreateGroup(true)}
-                className="p-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white shadow-md transition"
+                className="p-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white shadow-md transition cursor-pointer"
                 title="Create New Class or Faculty Group"
               >
                 <Plus className="w-4 h-4" />
@@ -378,8 +577,10 @@ export default function ChitChatView() {
               {/* Action Buttons in Header */}
               <div className="flex items-center gap-1.5 text-xs text-slate-400">
                 <button
-                  onClick={() => alert(`Voice call initiated with ${activeChat.name} (${activeChat.phone || 'Class channel'})`)}
-                  className="p-2 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-emerald-400 transition"
+                  onClick={() =>
+                    handleInitiateCall(activeChat.name, activeChat.phone, activeChat.avatar)
+                  }
+                  className="p-2 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-emerald-400 transition cursor-pointer"
                   title="Voice Call"
                 >
                   <Phone className="w-4 h-4" />
@@ -759,153 +960,612 @@ export default function ChitChatView() {
         </div>
       )}
 
-      {/* 4. MODAL: CONTACT & PHONE DIRECTORY (START CHAT WITH TEACHER OR BY PHONE) */}
+      {/* 4. MODAL: +91 NUMBER DIALER & CONTACT ADDING SYSTEM */}
       {showNewChatModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
-                  <UserPlus className="w-4 h-4" />
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <PhoneCall className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-white">Start New Conversation</h4>
-                  <p className="text-[11px] text-slate-400">Chat with teacher or student by phone number</p>
+                  <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+                    <span>Number Dialing & Adding System</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-mono border border-emerald-500/30">
+                      +91 India
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Dial any mobile number to start a WhatsApp-style chat or voice call
+                  </p>
                 </div>
               </div>
               <button
                 onClick={() => setShowNewChatModal(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Filter Tabs: Faculty vs Students */}
-            <div className="flex items-center gap-2 p-1 bg-slate-950 rounded-2xl border border-slate-800">
+            {/* Main Navigation Tabs */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-950 rounded-2xl border border-slate-800">
               <button
-                onClick={() => setContactTypeFilter('faculty')}
-                className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition ${
-                  contactTypeFilter === 'faculty'
-                    ? 'bg-purple-600 text-white shadow'
+                onClick={() => setModalTab('dialer')}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  modalTab === 'dialer'
+                    ? 'bg-emerald-600 text-white shadow-md'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                Faculty / Teachers ({(teachers || []).length})
+                <PhoneCall className="w-3.5 h-3.5" />
+                <span>+91 Dialpad</span>
               </button>
               <button
-                onClick={() => setContactTypeFilter('students')}
-                className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition ${
-                  contactTypeFilter === 'students'
-                    ? 'bg-indigo-600 text-white shadow'
+                onClick={() => setModalTab('directory')}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  modalTab === 'directory'
+                    ? 'bg-indigo-600 text-white shadow-md'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                Students ({(students || []).length})
+                <Users className="w-3.5 h-3.5" />
+                <span>Directory</span>
+              </button>
+              <button
+                onClick={() => setModalTab('recent')}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  modalTab === 'recent'
+                    ? 'bg-purple-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>Recent ({recentDialed.length})</span>
               </button>
             </div>
 
-            {/* Search Input */}
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                placeholder="Search name, department or phone..."
-                value={contactSearchQuery}
-                onChange={(e) => setContactSearchQuery(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-8 pr-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+            {/* TAB 1: +91 NUMBER DIALER & SMART ADD */}
+            {modalTab === 'dialer' && (
+              <div className="space-y-4">
+                {/* Phone Screen & Display */}
+                <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <span className="flex items-center gap-1 text-emerald-400 font-semibold">
+                      <span className="text-base">🇮🇳</span> IN (+91)
+                    </span>
+                    <span className="font-mono text-[10px]">
+                      {dialedDigits.length}/10 Digits
+                    </span>
+                  </div>
+
+                  {/* Input display */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <span className="text-lg font-bold text-emerald-400 font-mono select-none">
+                        +91
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="Enter 10-digit number..."
+                        value={dialedDigits}
+                        onChange={(e) => {
+                          const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          setDialedDigits(digitsOnly);
+                        }}
+                        className="bg-transparent text-white font-mono text-xl font-extrabold focus:outline-none w-full tracking-wider"
+                      />
+                    </div>
+
+                    {dialedDigits && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={handleBackspace}
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-rose-400 transition cursor-pointer"
+                          title="Backspace"
+                        >
+                          <Delete className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleClearDialer}
+                          className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-400 hover:text-white transition cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Instant Database Match Card */}
+                {matchedStudent && (
+                  <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 flex items-center justify-between animate-fadeIn">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <img
+                        src={matchedStudent.avatar}
+                        alt={matchedStudent.name}
+                        className="w-10 h-10 rounded-xl object-cover ring-2 ring-emerald-500/60 shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-white truncate">
+                            {matchedStudent.name}
+                          </span>
+                          <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 text-[9px] font-semibold">
+                            Student
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-300">
+                          Roll {matchedStudent.rollNo} • {matchedStudent.department}
+                        </p>
+                        <p className="text-[10px] text-emerald-400 font-mono">
+                          {matchedStudent.phone}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() =>
+                          handleDialNumberAndChat(
+                            matchedStudent.phone,
+                            matchedStudent.name,
+                            false,
+                            'Student'
+                          )
+                        }
+                        className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md transition cursor-pointer"
+                      >
+                        Chat
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleInitiateCall(
+                            matchedStudent.name,
+                            matchedStudent.phone,
+                            matchedStudent.avatar
+                          )
+                        }
+                        className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 transition cursor-pointer"
+                        title="Call"
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {matchedTeacher && (
+                  <div className="p-3 rounded-2xl bg-purple-950/40 border border-purple-500/40 flex items-center justify-between animate-fadeIn">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <img
+                        src={matchedTeacher.avatar}
+                        alt={matchedTeacher.name}
+                        className="w-10 h-10 rounded-xl object-cover ring-2 ring-purple-500/60 shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-white truncate">
+                            {matchedTeacher.name}
+                          </span>
+                          <span className="px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 text-[9px] font-semibold">
+                            Faculty
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-300">
+                          {matchedTeacher.designation || 'Professor'} • {matchedTeacher.department}
+                        </p>
+                        <p className="text-[10px] text-purple-300 font-mono">
+                          {matchedTeacher.phone}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() =>
+                          handleDialNumberAndChat(
+                            matchedTeacher.phone,
+                            matchedTeacher.name,
+                            true,
+                            'Faculty'
+                          )
+                        }
+                        className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md transition cursor-pointer"
+                      >
+                        Chat
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleInitiateCall(
+                            matchedTeacher.name,
+                            matchedTeacher.phone,
+                            matchedTeacher.avatar
+                          )
+                        }
+                        className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-purple-300 transition cursor-pointer"
+                        title="Call"
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* If 10 digits entered but not recognized in directory: custom contact form */}
+                {dialedDigits.length >= 10 && !matchedStudent && !matchedTeacher && (
+                  <div className="p-3.5 rounded-2xl bg-slate-800/60 border border-slate-700/80 space-y-2.5 animate-fadeIn">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-amber-400 flex items-center gap-1">
+                        <Sparkles className="w-3.5 h-3.5" /> New / External Number
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-400">
+                        +91 {dialedDigits}
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                        Contact / Parent Name
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Aarav's Father / External Examiner"
+                        value={customContactName}
+                        onChange={(e) => setCustomContactName(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] text-slate-400">Tag:</span>
+                      {['Parent / Guardian', 'Student', 'Faculty', 'External'].map((role) => (
+                        <button
+                          key={role}
+                          type="button"
+                          onClick={() => setCustomContactRole(role)}
+                          className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold transition cursor-pointer ${
+                            customContactRole === role
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-slate-900 text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          {role}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleDialNumberAndChat(
+                          dialedDigits,
+                          customContactName,
+                          customContactRole === 'Faculty',
+                          customContactRole
+                        )
+                      }
+                      className="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 cursor-pointer"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      <span>Add Contact & Open ChitChat</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* 3x4 Touch / Click Dialpad */}
+                <div className="grid grid-cols-3 gap-2.5 max-w-xs mx-auto pt-1">
+                  {DIALPAD_KEYS.map((k) => (
+                    <button
+                      key={k.digit}
+                      type="button"
+                      onClick={() => handleDialPadClick(k.digit)}
+                      className="h-14 rounded-2xl bg-slate-800/70 hover:bg-slate-700/90 active:scale-95 border border-slate-700/60 flex flex-col items-center justify-center transition cursor-pointer shadow-sm group"
+                    >
+                      <span className="text-lg font-bold text-white group-hover:text-emerald-400 transition">
+                        {k.digit}
+                      </span>
+                      {k.sub && (
+                        <span className="text-[9px] text-slate-400 font-mono tracking-widest leading-none">
+                          {k.sub}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Bottom Action Triggers */}
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleDialNumberAndChat(
+                        dialedDigits,
+                        customContactName,
+                        false,
+                        customContactRole
+                      )
+                    }
+                    disabled={dialedDigits.length < 10}
+                    className="flex-1 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/20 cursor-pointer"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    <span>Start ChitChat</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleInitiateCall(
+                        matchedStudent?.name || matchedTeacher?.name || customContactName || `+91 ${dialedDigits}`,
+                        `+91 ${dialedDigits}`,
+                        matchedStudent?.avatar || matchedTeacher?.avatar
+                      )
+                    }
+                    disabled={dialedDigits.length < 10}
+                    className="flex-1 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/20 cursor-pointer"
+                  >
+                    <Phone className="w-4 h-4" />
+                    <span>Voice Call</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: DIRECTORY */}
+            {modalTab === 'directory' && (
+              <div className="space-y-3">
+                {/* Faculty vs Students Toggle */}
+                <div className="flex items-center gap-2 p-1 bg-slate-950 rounded-2xl border border-slate-800">
+                  <button
+                    onClick={() => setContactTypeFilter('faculty')}
+                    className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      contactTypeFilter === 'faculty'
+                        ? 'bg-purple-600 text-white shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Faculty / Teachers ({(teachers || []).length})
+                  </button>
+                  <button
+                    onClick={() => setContactTypeFilter('students')}
+                    className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      contactTypeFilter === 'students'
+                        ? 'bg-indigo-600 text-white shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Students ({(students || []).length})
+                  </button>
+                </div>
+
+                {/* Search */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="Search name, department or phone..."
+                    value={contactSearchQuery}
+                    onChange={(e) => setContactSearchQuery(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-8 pr-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                {/* List */}
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {contactTypeFilter === 'faculty' ? (
+                    (teachers || [])
+                      .filter((t) => t.id !== currentUser?.id)
+                      .filter(
+                        (t) =>
+                          t.name.toLowerCase().includes(contactSearchQuery.toLowerCase()) ||
+                          (t.phone && t.phone.includes(contactSearchQuery)) ||
+                          (t.department &&
+                            t.department.toLowerCase().includes(contactSearchQuery.toLowerCase()))
+                      )
+                      .map((teach) => (
+                        <div
+                          key={teach.id}
+                          onClick={() => handleStartDirectChat(teach, true)}
+                          className="p-3 rounded-2xl bg-slate-950 border border-slate-800 hover:border-purple-500/50 cursor-pointer flex items-center justify-between transition group"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <img
+                              src={teach.avatar}
+                              alt={teach.name}
+                              className="w-9 h-9 rounded-xl object-cover ring-1 ring-slate-700"
+                            />
+                            <div className="min-w-0">
+                              <h5 className="text-xs font-bold text-white group-hover:text-purple-300 transition truncate">
+                                {teach.name}
+                              </h5>
+                              <p className="text-[10px] text-slate-400 font-mono truncate">
+                                {teach.designation || 'Faculty'} • {teach.department}
+                              </p>
+                              <div className="text-[10px] text-emerald-400 font-mono flex items-center gap-1 mt-0.5">
+                                <Phone className="w-2.5 h-2.5" />
+                                <span>{teach.phone || '+91 98201 00000'}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <button className="px-2.5 py-1 rounded-lg bg-purple-600/20 group-hover:bg-purple-600 text-purple-300 group-hover:text-white text-[11px] font-semibold transition cursor-pointer">
+                            Chat
+                          </button>
+                        </div>
+                      ))
+                  ) : (
+                    (students || [])
+                      .filter((s) => s.id !== currentUser?.id)
+                      .filter(
+                        (s) =>
+                          s.name.toLowerCase().includes(contactSearchQuery.toLowerCase()) ||
+                          (s.phone && s.phone.includes(contactSearchQuery)) ||
+                          (s.rollNo && s.rollNo.includes(contactSearchQuery))
+                      )
+                      .map((stud) => (
+                        <div
+                          key={stud.id}
+                          onClick={() => handleStartDirectChat(stud, false)}
+                          className="p-3 rounded-2xl bg-slate-950 border border-slate-800 hover:border-indigo-500/50 cursor-pointer flex items-center justify-between transition group"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <img
+                              src={stud.avatar}
+                              alt={stud.name}
+                              className="w-9 h-9 rounded-xl object-cover ring-1 ring-slate-700"
+                            />
+                            <div className="min-w-0">
+                              <h5 className="text-xs font-bold text-white group-hover:text-indigo-300 transition truncate">
+                                {stud.name}
+                              </h5>
+                              <p className="text-[10px] text-slate-400 font-mono truncate">
+                                Roll {stud.rollNo} • {stud.department}
+                              </p>
+                              <div className="text-[10px] text-emerald-400 font-mono flex items-center gap-1 mt-0.5">
+                                <Phone className="w-2.5 h-2.5" />
+                                <span>{stud.phone || '+91 98765 00000'}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <button className="px-2.5 py-1 rounded-lg bg-indigo-600/20 group-hover:bg-indigo-600 text-indigo-300 group-hover:text-white text-[11px] font-semibold transition cursor-pointer">
+                            Chat
+                          </button>
+                        </div>
+                      ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: RECENT NUMBERS */}
+            {modalTab === 'recent' && (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {recentDialed.length > 0 ? (
+                  recentDialed.map((rec, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between hover:border-emerald-500/40 transition"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-slate-800 text-emerald-400 flex items-center justify-center">
+                          <PhoneForwarded className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-white">{rec.name || rec.phone}</p>
+                          <p className="text-[10px] text-slate-400 font-mono">
+                            {rec.phone} • {rec.role || 'Contact'} ({rec.time})
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() =>
+                            handleDialNumberAndChat(rec.phone, rec.name, false, rec.role)
+                          }
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white text-[11px] font-semibold transition cursor-pointer"
+                        >
+                          Chat
+                        </button>
+                        <button
+                          onClick={() => handleInitiateCall(rec.name, rec.phone)}
+                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
+                          title="Call"
+                        >
+                          <Phone className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-8 text-center text-xs text-slate-400">
+                    No recent numbers dialed yet. Use the dialpad to start a conversation!
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="pt-2 text-right border-t border-slate-800">
+              <button
+                onClick={() => setShowNewChatModal(false)}
+                className="px-4 py-1.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. ACTIVE VOICE CALL SCREEN OVERLAY */}
+      {activeCall && (
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-lg z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-gradient-to-b from-slate-900 via-slate-950 to-slate-950 border border-slate-800 rounded-3xl max-w-sm w-full p-8 shadow-2xl text-center space-y-6">
+            <div className="flex justify-between items-center text-slate-400 text-xs">
+              <span className="flex items-center gap-1 text-emerald-400 font-mono">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                <span>WebRTC Voice Pipe</span>
+              </span>
+              <span className="font-mono">{formatCallTime(callTimer)}</span>
+            </div>
+
+            {/* Avatar with Pulsing Rings */}
+            <div className="relative mx-auto w-24 h-24">
+              <div className="absolute inset-0 rounded-3xl bg-emerald-500/20 animate-ping opacity-75" />
+              <img
+                src={activeCall.avatar}
+                alt={activeCall.name}
+                className="w-24 h-24 rounded-3xl object-cover ring-4 ring-emerald-500/50 shadow-2xl relative z-10 mx-auto"
               />
             </div>
 
-            {/* Contact List */}
-            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-              {contactTypeFilter === 'faculty' ? (
-                (teachers || [])
-                  .filter((t) => t.id !== currentUser?.id)
-                  .filter((t) =>
-                    t.name.toLowerCase().includes(contactSearchQuery.toLowerCase()) ||
-                    (t.phone && t.phone.includes(contactSearchQuery)) ||
-                    (t.department && t.department.toLowerCase().includes(contactSearchQuery.toLowerCase()))
-                  )
-                  .map((teach) => (
-                    <div
-                      key={teach.id}
-                      onClick={() => handleStartDirectChat(teach, true)}
-                      className="p-3 rounded-2xl bg-slate-950 border border-slate-800 hover:border-purple-500/50 cursor-pointer flex items-center justify-between transition group"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <img
-                          src={teach.avatar}
-                          alt={teach.name}
-                          className="w-9 h-9 rounded-xl object-cover ring-1 ring-slate-700"
-                        />
-                        <div className="min-w-0">
-                          <h5 className="text-xs font-bold text-white group-hover:text-purple-300 transition truncate">
-                            {teach.name}
-                          </h5>
-                          <p className="text-[10px] text-slate-400 font-mono truncate">
-                            {teach.designation || 'Faculty'} • {teach.department}
-                          </p>
-                          <div className="text-[10px] text-emerald-400 font-mono flex items-center gap-1 mt-0.5">
-                            <Phone className="w-2.5 h-2.5" />
-                            <span>{teach.phone || '+91 98201 00000'}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <button className="px-2.5 py-1 rounded-lg bg-purple-600/20 group-hover:bg-purple-600 text-purple-300 group-hover:text-white text-[11px] font-semibold transition">
-                        Chat
-                      </button>
-                    </div>
-                  ))
-              ) : (
-                (students || [])
-                  .filter((s) => s.id !== currentUser?.id)
-                  .filter((s) =>
-                    s.name.toLowerCase().includes(contactSearchQuery.toLowerCase()) ||
-                    (s.phone && s.phone.includes(contactSearchQuery)) ||
-                    (s.rollNo && s.rollNo.includes(contactSearchQuery))
-                  )
-                  .map((stud) => (
-                    <div
-                      key={stud.id}
-                      onClick={() => handleStartDirectChat(stud, false)}
-                      className="p-3 rounded-2xl bg-slate-950 border border-slate-800 hover:border-indigo-500/50 cursor-pointer flex items-center justify-between transition group"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <img
-                          src={stud.avatar}
-                          alt={stud.name}
-                          className="w-9 h-9 rounded-xl object-cover ring-1 ring-slate-700"
-                        />
-                        <div className="min-w-0">
-                          <h5 className="text-xs font-bold text-white group-hover:text-indigo-300 transition truncate">
-                            {stud.name}
-                          </h5>
-                          <p className="text-[10px] text-slate-400 font-mono truncate">
-                            Roll {stud.rollNo} • {stud.department}
-                          </p>
-                          <div className="text-[10px] text-emerald-400 font-mono flex items-center gap-1 mt-0.5">
-                            <Phone className="w-2.5 h-2.5" />
-                            <span>{stud.phone || '+91 98765 00000'}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <button className="px-2.5 py-1 rounded-lg bg-indigo-600/20 group-hover:bg-indigo-600 text-indigo-300 group-hover:text-white text-[11px] font-semibold transition">
-                        Chat
-                      </button>
-                    </div>
-                  ))
-              )}
+            {/* Callee Info */}
+            <div>
+              <h3 className="text-lg font-bold text-white">{activeCall.name}</h3>
+              <p className="text-xs text-emerald-400 font-mono mt-0.5">{activeCall.phone}</p>
+              <p className="text-[11px] text-slate-400 mt-2">
+                {callTimer > 0 ? 'Connected • End-to-End Encrypted' : 'Calling...'}
+              </p>
             </div>
 
-            <div className="pt-2 text-right">
+            {/* In-Call Controls */}
+            <div className="flex items-center justify-center gap-4 pt-4 border-t border-slate-800">
               <button
-                onClick={() => setShowNewChatModal(false)}
-                className="px-4 py-1.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold"
+                onClick={() => setIsCallMuted(!isCallMuted)}
+                className={`p-3.5 rounded-2xl transition cursor-pointer ${
+                  isCallMuted
+                    ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                }`}
+                title={isCallMuted ? 'Unmute' : 'Mute'}
               >
-                Close
+                <Phone className="w-5 h-5 rotate-135" />
+              </button>
+
+              <button
+                onClick={() => setActiveCall(null)}
+                className="p-4 rounded-3xl bg-rose-600 hover:bg-rose-500 text-white shadow-xl shadow-rose-600/40 transition transform active:scale-95 cursor-pointer"
+                title="End Call"
+              >
+                <Phone className="w-6 h-6 rotate-135" />
+              </button>
+
+              <button
+                onClick={() => setIsSpeakerOn(!isSpeakerOn)}
+                className={`p-3.5 rounded-2xl transition cursor-pointer ${
+                  isSpeakerOn
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                }`}
+                title="Speaker"
+              >
+                <PhoneForwarded className="w-5 h-5" />
               </button>
             </div>
           </div>
