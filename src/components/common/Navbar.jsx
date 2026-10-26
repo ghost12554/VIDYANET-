@@ -85,12 +85,13 @@ export default function Navbar({ onOpenAuth }) {
               <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-slate-100 to-indigo-200 bg-clip-text text-transparent">
                 INDIRA UNIVERSITY
               </span>
-              <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                SOIT UMS
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1 shadow-xs">
+                <Sparkles className="w-2.5 h-2.5 text-indigo-400" />
+                Teacher Co-Pilot
               </span>
             </div>
             <p className="text-xs text-slate-400 font-medium hidden sm:block">
-              School of Information Technology • SY.B.Sc. AIML
+              A Teacher Co-Pilot (AI Assistant for Teachers) • School of IT (AIML)
             </p>
           </div>
         </div>

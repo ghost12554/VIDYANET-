@@ -807,10 +807,10 @@ export default function TeacherBotMarket() {
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mt-1 flex items-center gap-2.5">
               <Bot className="w-8 h-8 text-purple-400" />
-              BotMarket • Faculty AI Suite
+              A Teacher Co-Pilot (AI Assistant for Teachers)
             </h2>
             <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
-              Generate custom quizzes with question marks, coursework problem sets, coding tests with live terminal test cases, lecture slides, study notes, evaluate submissions, and manage the dynamic attendance register.
+              Teacher Co-Pilot: Generate custom quizzes, coursework assignments with Bloom's taxonomy rubrics, coding tests with live student terminal, 16:9 widescreen presentation slide decks, and publication-grade lecture notes.
             </p>
           </div>
 

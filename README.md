@@ -1,4 +1,4 @@
-# VIDYANET: Intelligent University Management System & Multi-Agent Academic Workspace
+# A Teacher Co-Pilot (AI Assistant for Teachers): Intelligent University Management System & Multi-Agent Academic Workspace
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-vidyanet.vercel.app-6366f1?style=for-the-badge&logo=vercel)](https://vidyanet.vercel.app)
 [![React 19](https://img.shields.io/badge/React-19.3.1-61DAFB?style=for-the-badge&logo=react)](https://react.dev)

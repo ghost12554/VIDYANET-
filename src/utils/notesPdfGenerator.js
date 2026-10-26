@@ -72,7 +72,7 @@ function cleanFormatting(raw) {
 }
 
 /**
- * Designer-Grade PDF Engine for VIDYANET Academic Lecture Notes
+ * Designer-Grade PDF Engine for Teacher Co-Pilot (AI Assistant for Teachers) Academic Lecture Notes
  * Formats notes with publication-level typography, cards, IDE-styled code blocks, and zero syntax artifacts.
  */
 export function generateNotesPdf(note) {
@@ -104,7 +104,7 @@ export function generateNotesPdf(note) {
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10.5);
-      doc.text('INDIRA UNIVERSITY, PUNE • VIDYANET CAMPUS ERP', margin + contentWidth / 2, cursorY + 7, {
+      doc.text('INDIRA UNIVERSITY, PUNE • Teacher Co-Pilot (AI Assistant for Teachers)', margin + contentWidth / 2, cursorY + 7, {
         align: 'center',
       });
 
@@ -649,7 +649,7 @@ export function generateNotesPdf(note) {
     doc.line(margin, pageHeight - 9, margin + contentWidth, pageHeight - 9);
 
     doc.text(
-      'Vidyanet Campus Academic Portal • Faculty Guide: Prof. Sarita Byagar (HOD - AIML)',
+      'Teacher Co-Pilot (AI Assistant for Teachers) • Faculty Guide: Prof. Sarita Byagar (HOD - AIML)',
       margin,
       pageHeight - 5
     );

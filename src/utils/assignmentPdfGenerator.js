@@ -209,7 +209,7 @@ export function generateAssignmentPdf(assignment) {
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(148, 163, 184);
-    doc.text('VIDYANET University Academic Management System • AI Assessment Hub', margin, pageHeight - 6);
+    doc.text('Teacher Co-Pilot (AI Assistant for Teachers) • AI Assessment Hub', margin, pageHeight - 6);
     doc.text(`Page ${i} of ${totalPages}`, pageWidth - margin, pageHeight - 6, { align: 'right' });
   }
 

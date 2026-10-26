@@ -1,5 +1,5 @@
 /**
- * Browser-based Python Execution Engine for VIDYANET Coding Terminal
+ * Browser-based Python Execution Engine for Teacher Co-Pilot (AI Assistant for Teachers) Coding Terminal
  * Executes Python code entirely client-side with zero external API keys or paid services.
  * Uses Pyodide (WebAssembly Python 3) when online, and a robust offline AST simulator fallback.
  */

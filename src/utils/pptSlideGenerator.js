@@ -300,7 +300,7 @@ export function generatePresentationPdf(ppt, themeId = 'midnight') {
     doc.setFontSize(7.2);
     doc.setTextColor(...theme.textSecondary);
     doc.text(
-      'Vidyanet Campus Academic Portal • Faculty: Prof. Sarita Byagar (HOD - AIML)',
+      'Teacher Co-Pilot (AI Assistant for Teachers) • Faculty: Prof. Sarita Byagar (HOD - AIML)',
       margin,
       pageHeight - 5.5
     );
@@ -364,7 +364,7 @@ export function exportPresentationHtml(ppt, themeId = 'midnight') {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${ppt.title || 'Vidyanet Academic Presentation'}</title>
+  <title>${ppt.title || 'Teacher Co-Pilot (AI Assistant for Teachers)'}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -471,7 +471,7 @@ export function exportPresentationHtml(ppt, themeId = 'midnight') {
 </head>
 <body>
   <header>
-    <div class="brand">VIDYANET • ${ppt.topic || 'Lecture Presentation'}</div>
+    <div class="brand">Teacher Co-Pilot • ${ppt.topic || 'Lecture Presentation'}</div>
     <div class="faculty">Prof. Sarita Byagar (HOD - AIML)</div>
   </header>
   <main>

@@ -162,9 +162,9 @@ export default function ProfileView() {
     emergencyContactRelation: currentUser?.emergencyContactRelation || 'Parent / Guardian',
     emergencyContactPhone: currentUser?.emergencyContactPhone || '+91 98220 99881',
     emergencyNotes: currentUser?.emergencyNotes || 'No known drug allergies. Penicillin safe.',
-    linkedin: currentUser?.linkedin || 'https://linkedin.com/in/vidyanet-scholar',
-    github: currentUser?.github || 'https://github.com/vidyanet-scholar',
-    portfolio: currentUser?.portfolio || 'https://vidyanet.edu/scholars/aarav',
+    linkedin: currentUser?.linkedin || 'https://linkedin.com/in/teacher-copilot-scholar',
+    github: currentUser?.github || 'https://github.com/teacher-copilot-scholar',
+    portfolio: currentUser?.portfolio || 'https://teachercopilot.indira.edu/scholars/aarav',
     skills: currentUser?.skills || DEFAULT_SKILLS,
     avatar:
       currentUser?.avatar ||
@@ -518,7 +518,7 @@ export default function ProfileView() {
     // Official Seal and Sign-off
     pdf.setTextColor(148, 163, 184);
     pdf.setFontSize(8);
-    pdf.text('Generated via VIDYANET Institutional Portal • UID: IU-VERIF-2026-894', 15, 260);
+    pdf.text('Generated via Teacher Co-Pilot (AI Assistant for Teachers) • UID: IU-VERIF-2026-894', 15, 260);
     pdf.text('Authorized Academic Seal: Controller of Examinations, Indira University', 15, 265);
     pdf.text('Dean: Prof. Janardan Pawar', 140, 265);
 

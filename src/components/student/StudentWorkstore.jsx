@@ -620,7 +620,7 @@ export default function StudentWorkstore() {
 
                 {/* Modal Footer */}
                 <div className="px-6 py-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
-                  <span>Vidyanet Campus ERP • Official Verified Academic Lecture Handout</span>
+                  <span>Teacher Co-Pilot (AI Assistant for Teachers) • Official Verified Academic Lecture Handout</span>
                   <button
                     onClick={() => downloadNotesPdf(readingNoteModal)}
                     className="text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-1"

@@ -1,5 +1,5 @@
 /**
- * Comprehensive AI Generation Service for VIDYANET / Indira UMS BotMarket
+ * Comprehensive AI Generation Service for Teacher Co-Pilot (AI Assistant for Teachers) / Indira UMS BotMarket
  * Powered by Google Gemini (gemini-3-flash-preview / gemini-flash-latest) and NVIDIA NIM.
  * Features strict adherence to user-specified Rules & Difficulty Criteria, with a 100% dynamic,
  * topic-aware, and rule-enforcing offline generation engine.

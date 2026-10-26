@@ -199,7 +199,7 @@ export default function LectureTrackerCard() {
             </button>
           </div>
           <p className="text-slate-300 leading-relaxed">
-            1. <strong>Real-Life Indian Time Awareness:</strong> VidyaNet continuously checks current Indian Standard Time (Asia/Kolkata). During college hours (08:45 AM - 03:00 PM), it automatically detects the current period and marks it "LIVE NOW" with countdown minutes and a progress bar.
+            1. <strong>Real-Life Indian Time Awareness:</strong> Teacher Co-Pilot continuously checks current Indian Standard Time (Asia/Kolkata). During college hours (08:45 AM - 03:00 PM), it automatically detects the current period and marks it "LIVE NOW" with countdown minutes and a progress bar.
           </p>
           <p className="text-slate-300 leading-relaxed">
             2. <strong>Seamless Period Transitions:</strong> At the exact minute a lecture ends (e.g. 09:30 AM), the tracker dynamically transitions to the next period or break without needing any browser reload.
