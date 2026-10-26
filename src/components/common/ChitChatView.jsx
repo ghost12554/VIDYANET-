@@ -95,6 +95,7 @@ export default function ChitChatView() {
   const [isCallMuted, setIsCallMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
 
+  const dialerInputRef = useRef(null);
   const [contactSearchQuery, setContactSearchQuery] = useState('');
   const [contactTypeFilter, setContactTypeFilter] = useState('faculty'); // 'faculty' | 'students'
 
@@ -113,6 +114,62 @@ export default function ChitChatView() {
     { digit: '0', sub: '+' },
     { digit: '#', sub: ' ' },
   ];
+
+  // Auto-focus input when dialer opens
+  useEffect(() => {
+    if (showNewChatModal && modalTab === 'dialer') {
+      const timer = setTimeout(() => {
+        dialerInputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [showNewChatModal, modalTab]);
+
+  // Physical Keyboard & Numpad listener for dialer
+  useEffect(() => {
+    if (!showNewChatModal || modalTab !== 'dialer') return;
+
+    const handleKeyDown = (e) => {
+      // Don't hijack if user is typing a custom contact name or inside another text input
+      const activeTag = document.activeElement?.tagName;
+      const activeName = document.activeElement?.getAttribute('name');
+      if (activeName === 'customContactName' || activeTag === 'TEXTAREA') {
+        return;
+      }
+
+      // Capture standard numbers '0'-'9', or physical Numpad keys 'Numpad0'-'Numpad9'
+      let keyChar = null;
+      if (/^[0-9]$/.test(e.key)) {
+        keyChar = e.key;
+      } else if (
+        e.code &&
+        e.code.startsWith('Numpad') &&
+        /^[0-9]$/.test(e.code.replace('Numpad', ''))
+      ) {
+        keyChar = e.code.replace('Numpad', '');
+      } else if (e.key === '*' || e.key === '#') {
+        keyChar = e.key;
+      }
+
+      if (keyChar) {
+        e.preventDefault();
+        setDialedDigits((prev) => (prev.length < 10 ? prev + keyChar : prev));
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        setDialedDigits((prev) => prev.slice(0, -1));
+      } else if (e.key === 'Escape') {
+        setShowNewChatModal(false);
+      } else if (e.key === 'Enter') {
+        if (dialedDigits.length >= 10) {
+          e.preventDefault();
+          handleDialNumberAndChat(dialedDigits, customContactName);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showNewChatModal, modalTab, dialedDigits, customContactName]);
 
   // Call timer effect
   useEffect(() => {
@@ -1048,7 +1105,9 @@ export default function ChitChatView() {
                         +91
                       </span>
                       <input
+                        ref={dialerInputRef}
                         type="text"
+                        inputMode="numeric"
                         placeholder="Enter 10-digit number..."
                         value={dialedDigits}
                         onChange={(e) => {
@@ -1214,6 +1273,7 @@ export default function ChitChatView() {
                       </label>
                       <input
                         type="text"
+                        name="customContactName"
                         placeholder="e.g. Aarav's Father / External Examiner"
                         value={customContactName}
                         onChange={(e) => setCustomContactName(e.target.value)}
