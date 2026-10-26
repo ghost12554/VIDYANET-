@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useCollege } from '../../context/CollegeContext';
+import { useGoogleDialog } from '../common/GoogleDialog';
 import {
   FileText,
   Upload,
@@ -103,6 +104,8 @@ export default function TeacherWorkstore() {
     workstoreTargetTab,
     setWorkstoreTargetTab,
   } = useCollege();
+
+  const { showToast, showModal } = useGoogleDialog();
 
   const [activeTab, setActiveTab] = useState(() => {
     if (workstoreTargetTab) return workstoreTargetTab;
@@ -4171,23 +4174,17 @@ export default function TeacherWorkstore() {
 
       {/* 5. MEETING HOST CONTROLS - ZOOM / GOOGLE MEET STYLE */}
       {activeTab === 'meeting' && (() => {
-        // Resolve attendees based on chosen department
-        const meetingAttendees = (students || []).filter((s) => {
-          if (!meetingTargetDept || meetingTargetDept === 'ALL' || meetingTargetDept === 'All Connected Departments') {
-            return true;
-          }
-          return s.department === meetingTargetDept;
-        });
-
-        // Fallback default list if no students exist in DB
-        const displayAttendees = meetingAttendees.length > 0 ? meetingAttendees : [
-          { id: 'att-1', name: 'Aarav Sharma', rollNo: '15', department: 'Information Technology (AIML)' },
-          { id: 'att-2', name: 'Pooja Verma', rollNo: '35', department: 'Information Technology (AIML)' },
-          { id: 'att-3', name: 'Rohan Kulkarni', rollNo: '68', department: 'Information Technology (AIML)' },
-          { id: 'att-4', name: 'Neha Deshmukh', rollNo: '22', department: 'Information Technology (AIML)' },
-          { id: 'att-5', name: 'Kabir Mehta', rollNo: '08', department: 'Information Technology (AIML)' },
-          { id: 'att-6', name: 'Ananya Rao', rollNo: '19', department: 'Information Technology (AIML)' },
-        ];
+        // Resolve admitted attendees strictly from activeMeeting (starts empty until teacher admits students)
+        const currentAttendees = activeMeeting?.admittedParticipants || [];
+        const hostDisplayName = currentUser?.name || 'Prof. Divya C';
+        const hostInitials = hostDisplayName
+          .replace(/^(Prof\.|Dr\.|Mr\.|Ms\.|Mrs\.)\s+/i, '')
+          .trim()
+          .split(/\s+/)
+          .map((p) => p[0])
+          .join('')
+          .substring(0, 2)
+          .toUpperCase() || 'TH';
 
         return (
           <div className="bg-slate-900/90 rounded-3xl p-4 sm:p-6 border border-slate-800 shadow-2xl space-y-4 animate-fadeIn">
@@ -4407,7 +4404,7 @@ export default function TeacherWorkstore() {
                   <div className="flex items-center gap-2 text-xs">
                     <span className="px-2.5 py-1 rounded-xl bg-slate-900/90 backdrop-blur-md text-slate-300 border border-slate-800 font-mono text-[11px] flex items-center gap-1.5">
                       <Users className="w-3 h-3 text-purple-400" />
-                      {displayAttendees.length} Connected
+                      {currentAttendees.length} Connected
                     </span>
                     <span className="px-2.5 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold">
                       HD 60FPS
@@ -4440,13 +4437,13 @@ export default function TeacherWorkstore() {
                           ) : (
                             <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-purple-900/60 to-slate-900 text-white">
                               <span className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold">
-                                DC
+                                {hostInitials}
                               </span>
                               <span className="text-[10px] text-slate-300 mt-1">Virtual Feed</span>
                             </div>
                           )}
                           <div className="absolute bottom-1.5 left-2 bg-slate-950/80 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] text-white font-medium">
-                            Prof. Divya (You)
+                            {hostDisplayName} (You)
                           </div>
                         </div>
                       )}
@@ -4467,7 +4464,7 @@ export default function TeacherWorkstore() {
                         <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-slate-900 to-slate-950 text-center p-6">
                           <div className="relative mb-4">
                             <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center text-white text-2xl font-bold shadow-xl border-4 border-purple-400/40">
-                              DC
+                              {hostInitials}
                             </div>
                             {isMicOn && (
                               <span className="absolute bottom-0 right-0 p-1.5 rounded-full bg-emerald-500 border-2 border-slate-950 text-white animate-pulse">
@@ -4475,7 +4472,7 @@ export default function TeacherWorkstore() {
                               </span>
                             )}
                           </div>
-                          <h4 className="text-white font-bold text-base">Prof. Divya C (Host)</h4>
+                          <h4 className="text-white font-bold text-base">{hostDisplayName} (Host)</h4>
                           <p className="text-xs text-slate-400 mt-1">
                             Virtual Presenter Video Active • Camera Feed Connected
                           </p>
@@ -4484,7 +4481,7 @@ export default function TeacherWorkstore() {
 
                       {/* Host Nameplate overlay */}
                       <div className="absolute bottom-20 left-4 z-20 bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-800 text-xs text-white font-semibold flex items-center gap-2">
-                        <span>Prof. Divya C (Host)</span>
+                        <span>{hostDisplayName} (Host)</span>
                         {isMicOn ? (
                           <span className="flex items-center gap-1 text-emerald-400 text-[10px] font-mono">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
@@ -4502,7 +4499,7 @@ export default function TeacherWorkstore() {
                         <div className={`w-28 h-28 rounded-full bg-gradient-to-tr from-purple-600 via-indigo-600 to-purple-800 flex items-center justify-center text-white text-3xl font-extrabold shadow-2xl border-4 ${
                           isMicOn ? 'border-emerald-400 ring-8 ring-emerald-500/20' : 'border-purple-500/30'
                         }`}>
-                          DC
+                          {hostInitials}
                         </div>
                         {isMicOn ? (
                           <div className="absolute -bottom-1 -right-1 p-2 rounded-full bg-emerald-500 text-white shadow-lg border-2 border-slate-950">
@@ -4515,7 +4512,7 @@ export default function TeacherWorkstore() {
                         )}
                       </div>
 
-                      <h4 className="text-white font-bold text-lg">Prof. Divya C (Host)</h4>
+                      <h4 className="text-white font-bold text-lg">{hostDisplayName} (Host)</h4>
                       <p className="text-xs text-slate-400 mt-1 max-w-sm">
                         Broadcasting to {meetingTargetDept === 'ALL' ? 'All Classes' : meetingTargetDept}
                       </p>
@@ -4611,8 +4608,9 @@ export default function TeacherWorkstore() {
                         setAllMuted(next);
                         // Also sync individual student states
                         const newMutes = {};
-                        displayAttendees.forEach((s) => {
-                          newMutes[s.id] = next;
+                        currentAttendees.forEach((s) => {
+                          const sid = s.studentId || s.id;
+                          newMutes[sid] = next;
                         });
                         setMutedStudents(newMutes);
                       }}
@@ -4709,9 +4707,6 @@ export default function TeacherWorkstore() {
               {/* Side Panel: Attendees Roster & In-Class Chat */}
               <div className="bg-slate-950 rounded-3xl border border-slate-800 p-4 flex flex-col justify-between shadow-xl min-h-[420px]">
                 {(() => {
-                  const currentAttendees = (activeMeeting?.admittedParticipants?.length > 0)
-                    ? activeMeeting.admittedParticipants
-                    : displayAttendees;
                   const activeChatList = (activeMeeting?.messages?.length > 0)
                     ? activeMeeting.messages
                     : meetingMessages;
@@ -4752,58 +4747,70 @@ export default function TeacherWorkstore() {
                             <span>Microphone</span>
                           </div>
                           <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
-                            {currentAttendees.map((stud) => {
-                              const sId = stud.studentId || stud.id;
-                              const isStudentMuted = stud.isMuted !== undefined ? stud.isMuted : (mutedStudents[sId] ?? allMuted);
-                              const hasHand = Boolean(stud.hasHandRaised);
-
-                              return (
-                                <div
-                                  key={sId}
-                                  className="flex items-center justify-between p-2 rounded-xl bg-slate-900/80 border border-slate-800/80 hover:border-slate-700 transition"
-                                >
-                                  <div className="min-w-0 pr-2">
-                                    <div className="text-xs font-semibold text-white truncate flex items-center gap-1.5">
-                                      <span>{stud.studentName || stud.name}</span>
-                                      {hasHand && (
-                                        <span title="Hand Raised" className="text-xs animate-bounce">✋</span>
-                                      )}
-                                    </div>
-                                    <div className="text-[10px] text-slate-400 font-mono">
-                                      Roll: {stud.rollNo || 'N/A'} • {stud.department ? stud.department.split(' ')[0] : 'AIML'}
-                                    </div>
-                                  </div>
-
-                                  <button
-                                    onClick={() => {
-                                      if (toggleMeetingStudentMute && stud.studentId) {
-                                        toggleMeetingStudentMute(stud.studentId);
-                                      }
-                                      setMutedStudents((prev) => ({
-                                        ...prev,
-                                        [sId]: !isStudentMuted,
-                                      }));
-                                    }}
-                                    className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition flex items-center gap-1 ${
-                                      isStudentMuted
-                                        ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30'
-                                        : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30'
-                                    }`}
-                                    title={isStudentMuted ? 'Click to Unmute' : 'Click to Mute'}
-                                  >
-                                    {isStudentMuted ? (
-                                      <>
-                                        <MicOff className="w-3 h-3" /> Muted
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Mic className="w-3 h-3" /> Live
-                                      </>
-                                    )}
-                                  </button>
+                            {currentAttendees.length === 0 ? (
+                              <div className="py-8 px-4 text-center rounded-2xl bg-slate-900/40 border border-dashed border-slate-800/80 my-2">
+                                <div className="w-10 h-10 mx-auto mb-2.5 rounded-full bg-slate-800/80 flex items-center justify-center text-slate-400">
+                                  <Users className="w-5 h-5 text-slate-400" />
                                 </div>
-                              );
-                            })}
+                                <p className="text-xs font-semibold text-slate-300">No students admitted yet</p>
+                                <p className="text-[11px] text-slate-500 mt-1 max-w-[210px] mx-auto">
+                                  Students will appear here once they join and you admit them from the Waiting Room.
+                                </p>
+                              </div>
+                            ) : (
+                              currentAttendees.map((stud) => {
+                                const sId = stud.studentId || stud.id;
+                                const isStudentMuted = stud.isMuted !== undefined ? stud.isMuted : (mutedStudents[sId] ?? allMuted);
+                                const hasHand = Boolean(stud.hasHandRaised);
+
+                                return (
+                                  <div
+                                    key={sId}
+                                    className="flex items-center justify-between p-2 rounded-xl bg-slate-900/80 border border-slate-800/80 hover:border-slate-700 transition"
+                                  >
+                                    <div className="min-w-0 pr-2">
+                                      <div className="text-xs font-semibold text-white truncate flex items-center gap-1.5">
+                                        <span>{stud.studentName || stud.name}</span>
+                                        {hasHand && (
+                                          <span title="Hand Raised" className="text-xs animate-bounce">✋</span>
+                                        )}
+                                      </div>
+                                      <div className="text-[10px] text-slate-400 font-mono">
+                                        Roll: {stud.rollNo || 'N/A'} • {stud.department ? stud.department.split(' ')[0] : 'AIML'}
+                                      </div>
+                                    </div>
+
+                                    <button
+                                      onClick={() => {
+                                        if (toggleMeetingStudentMute && stud.studentId) {
+                                          toggleMeetingStudentMute(stud.studentId);
+                                        }
+                                        setMutedStudents((prev) => ({
+                                          ...prev,
+                                          [sId]: !isStudentMuted,
+                                        }));
+                                      }}
+                                      className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition flex items-center gap-1 ${
+                                        isStudentMuted
+                                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30'
+                                          : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30'
+                                      }`}
+                                      title={isStudentMuted ? 'Click to Unmute' : 'Click to Mute'}
+                                    >
+                                      {isStudentMuted ? (
+                                        <>
+                                          <MicOff className="w-3 h-3" /> Muted
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Mic className="w-3 h-3" /> Live
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                );
+                              })
+                            )}
                           </div>
                         </div>
                       )}
@@ -4859,22 +4866,31 @@ export default function TeacherWorkstore() {
                 <div className="pt-3 border-t border-slate-800 mt-2">
                   <button
                     onClick={() => {
-                      const count = (activeMeeting?.admittedParticipants?.length > 0)
-                        ? activeMeeting.admittedParticipants.length
-                        : displayAttendees.length;
-                      alert(
-                        `Successfully synced ${count} online participants to today's Attendance Register (${meetingTargetDept === 'ALL' ? 'All Classes' : meetingTargetDept})!`
-                      );
+                      if (currentAttendees.length === 0) {
+                        showToast?.({
+                          type: 'warning',
+                          title: 'No Attendees Connected',
+                          message: 'There are currently no admitted students in this live lecture to sync attendance for.',
+                        }) || alert('There are currently no admitted students in this live lecture to sync.');
+                        return;
+                      }
+                      const count = currentAttendees.length;
+                      showToast?.({
+                        type: 'success',
+                        title: 'Attendance Synced',
+                        message: `Successfully synced ${count} online participant(s) to today's Attendance Register (${meetingTargetDept === 'ALL' ? 'All Classes' : meetingTargetDept})!`,
+                      }) || alert(`Successfully synced ${count} online participant(s) to today's Attendance Register!`);
                     }}
-                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-900/30 flex items-center justify-center gap-2 transition"
+                    disabled={currentAttendees.length === 0}
+                    className={`w-full py-2.5 rounded-xl text-xs font-bold shadow-lg flex items-center justify-center gap-2 transition ${
+                      currentAttendees.length === 0
+                        ? 'bg-slate-800/70 text-slate-500 cursor-not-allowed border border-slate-700/50'
+                        : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-900/30'
+                    }`}
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     <span>
-                      Sync Class Attendance (
-                      {(activeMeeting?.admittedParticipants?.length > 0)
-                        ? activeMeeting.admittedParticipants.length
-                        : displayAttendees.length}
-                      )
+                      Sync Class Attendance ({currentAttendees.length})
                     </span>
                   </button>
                 </div>
