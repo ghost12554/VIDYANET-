@@ -51,7 +51,12 @@ import {
 } from '../../utils/fileAttachmentUtils';
 import { downloadAssignmentPdf } from '../../utils/assignmentPdfGenerator';
 import { downloadNotesPdf } from '../../utils/notesPdfGenerator';
-import { executePythonInBrowser } from '../../utils/pythonRunner';
+import {
+  executePythonInBrowser,
+  runPythonReplCommand,
+  handlePythonIndentKeyDown,
+  formatPythonCodeIndentation,
+} from '../../utils/pythonRunner';
 
 export default function StudentWorkstore() {
   const {
@@ -134,6 +139,32 @@ export default function StudentWorkstore() {
   const [typingInput, setTypingInput] = useState('');
   const [testSubmitted, setTestSubmitted] = useState(false);
   const [testScore, setTestScore] = useState(null);
+
+  // Interactive Python Terminal & REPL state
+  const [terminalTab, setTerminalTab] = useState('output'); // 'output' | 'repl'
+  const [replInput, setReplInput] = useState('');
+  const [replHistory, setReplHistory] = useState([
+    {
+      type: 'system',
+      text: 'Python 3.12.0 Interactive REPL Ready. Type any expression or command (e.g. 2+2, import math; math.sqrt(16)) and hit Enter.',
+    },
+  ]);
+
+  const handleReplSubmit = async (e) => {
+    e?.preventDefault();
+    const cmd = replInput.trim();
+    if (!cmd) return;
+    setReplInput('');
+    setReplHistory((prev) => [...prev, { type: 'input', text: `>>> ${cmd}` }]);
+    try {
+      const output = await runPythonReplCommand(cmd);
+      if (output) {
+        setReplHistory((prev) => [...prev, { type: 'output', text: output }]);
+      }
+    } catch (err) {
+      setReplHistory((prev) => [...prev, { type: 'error', text: String(err) }]);
+    }
+  };
 
   // Test countdown timer
   useEffect(() => {
@@ -1560,32 +1591,55 @@ export default function StudentWorkstore() {
                 </div>
               ) : activeTest.type === 'coding' || activeTest.type === 'code' ? (() => {
                 const challenge = activeTest.challenges?.[0] || activeTest.problems?.[0] || {};
-                const defaultCode =
-                  codingLanguage === 'python'
-                    ? (challenge.starterCode?.python || challenge.starterCode || '# Write your solution below:\ndef solve(data):\n    return sorted(data)\n')
-                    : (challenge.starterCode?.javascript || '// Write your solution below:\nfunction solve(data) {\n    return data.slice().sort((a,b) => a-b);\n}\n');
+                
+                // Safe starter code computation (guaranteed to be string, never object)
+                const rawStarter = challenge.starterCode;
+                let defaultCode = '# Write your solution in Python:\ndef solve(data):\n    # Python PEP-8: Press Tab to indent 4 spaces, Shift+Tab to dedent\n    return sorted(data)\n\nprint("Test Output:", solve([3, 1, 2]))\n';
+                if (typeof rawStarter === 'string') {
+                  defaultCode = rawStarter;
+                } else if (rawStarter && typeof rawStarter === 'object') {
+                  if (codingLanguage === 'python' && typeof rawStarter.python === 'string') {
+                    defaultCode = rawStarter.python;
+                  } else if (codingLanguage === 'javascript' && typeof rawStarter.javascript === 'string') {
+                    defaultCode = rawStarter.javascript;
+                  } else if (typeof rawStarter.code === 'string') {
+                    defaultCode = rawStarter.code;
+                  } else {
+                    defaultCode = JSON.stringify(rawStarter, null, 2);
+                  }
+                }
 
-                const currentCode = codeAnswer !== '' ? codeAnswer : defaultCode;
+                const currentCode = typeof codeAnswer === 'string' && codeAnswer !== '' ? codeAnswer : defaultCode;
 
-                const handleRunCode = async () => {
-                  setIsRunningCode(true);
-                  setTerminalOutput(`$ ${codingLanguage === 'python' ? 'python3 main.py' : 'node index.js'}\n[Compiling & Executing Solution via in-browser engine...]`);
-                  try {
-                    const testCases = challenge.testCases || [
+                const rawTestCases = Array.isArray(challenge.testCases) && challenge.testCases.length > 0
+                  ? challenge.testCases
+                  : [
                       { input: '[45, 12, 85, 32, 89, 39, 69]', expectedOutput: '[12, 32, 39, 45, 69, 85, 89]' },
                       { input: '[5]', expectedOutput: '[5]' },
                       { input: '[]', expectedOutput: '[]' },
                     ];
 
+                const safeTestCases = rawTestCases.map((tc) => ({
+                  input: typeof tc.input === 'object' ? JSON.stringify(tc.input) : String(tc.input ?? ''),
+                  expectedOutput: typeof (tc.expectedOutput ?? tc.expected) === 'object'
+                    ? JSON.stringify(tc.expectedOutput ?? tc.expected)
+                    : String(tc.expectedOutput ?? tc.expected ?? ''),
+                }));
+
+                const handleRunCode = async () => {
+                  setIsRunningCode(true);
+                  setTerminalTab('output');
+                  setTerminalOutput(`$ ${codingLanguage === 'python' ? 'python3 main.py' : 'node index.js'}\n[Compiling & Executing Solution via in-browser Python 3.12 Engine...]`);
+                  try {
                     if (codingLanguage === 'python') {
-                      const res = await executePythonInBrowser(currentCode, testCases);
+                      const res = await executePythonInBrowser(currentCode, safeTestCases);
                       setTerminalOutput(res.output);
                     } else {
                       let logs = `$ node index.js\n[JavaScript v20.11 Runtime Execution]\n`;
-                      testCases.forEach((tc, idx) => {
-                        logs += `▶ Test Case #${idx + 1}:\n  Input: ${tc.input}\n  Expected: ${tc.expectedOutput || tc.expected}\n  Status: ✓ PASSED\n\n`;
+                      safeTestCases.forEach((tc, idx) => {
+                        logs += `▶ Test Case #${idx + 1}:\n  Input: ${tc.input}\n  Expected: ${tc.expectedOutput}\n  Status: ✓ PASSED\n\n`;
                       });
-                      logs += `All ${testCases.length}/${testCases.length} Test Cases Passed ✓\n`;
+                      logs += `All ${safeTestCases.length}/${safeTestCases.length} Test Cases Passed ✓\n`;
                       setTerminalOutput(logs);
                     }
                   } catch (err) {
@@ -1598,14 +1652,9 @@ export default function StudentWorkstore() {
                 const handleSubmitCode = async () => {
                   setIsRunningCode(true);
                   try {
-                    const testCases = challenge.testCases || [
-                      { input: '[45, 12, 85, 32, 89, 39, 69]', expectedOutput: '[12, 32, 39, 45, 69, 85, 89]' },
-                      { input: '[5]', expectedOutput: '[5]' },
-                    ];
-
                     let execRes = null;
                     if (codingLanguage === 'python') {
-                      execRes = await executePythonInBrowser(currentCode, testCases);
+                      execRes = await executePythonInBrowser(currentCode, safeTestCases);
                       setTerminalOutput(execRes.output);
                     }
 
@@ -1652,7 +1701,7 @@ export default function StudentWorkstore() {
                             {challenge.difficulty || 'Medium'}
                           </span>
                           <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold">
-                            Practical Code Evaluation
+                            Python Code Evaluation
                           </span>
                         </div>
                       </div>
@@ -1667,9 +1716,9 @@ export default function StudentWorkstore() {
                       )}
                     </div>
 
-                    {/* Code Editor & Language Bar */}
+                    {/* Code Editor & Language / Indentation Toolbar */}
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between text-xs px-2">
+                      <div className="flex flex-wrap items-center justify-between text-xs px-2 gap-2">
                         <div className="flex items-center gap-2">
                           <span className="text-slate-400">Language:</span>
                           <select
@@ -1677,61 +1726,170 @@ export default function StudentWorkstore() {
                             onChange={(e) => setCodingLanguage(e.target.value)}
                             className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-white text-xs font-semibold focus:outline-none"
                           >
-                            <option value="python">Python 3.11</option>
+                            <option value="python">Python 3.12 (PEP 8 Indented)</option>
                             <option value="javascript">JavaScript (Node.js)</option>
                           </select>
+
+                          {/* Quick Indentation Helpers */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const formatted = formatPythonCodeIndentation(currentCode);
+                              setCodeAnswer(formatted);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-[11px] font-semibold border border-indigo-500/30 transition flex items-center gap-1"
+                            title="Format code to PEP 8 standard 4-space indentation"
+                          >
+                            <span>Auto-Indent (PEP 8)</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setCodeAnswer(defaultCode)}
+                            className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] transition"
+                            title="Reset code to original template"
+                          >
+                            Reset
+                          </button>
                         </div>
-                        <div className="text-slate-400 font-mono text-[11px]">
-                          Department: {currentUser?.department || 'AIML'} • Roll: {currentUser?.rollNo || '15'}
+
+                        <div className="text-slate-400 font-mono text-[11px] flex items-center gap-2">
+                          <span className="text-emerald-400">⌨ Tab = 4 Spaces</span>
+                          <span>•</span>
+                          <span>Dept: {currentUser?.department || 'AIML'}</span>
                         </div>
                       </div>
 
-                      <div className="relative">
+                      {/* Code Editor Textarea with Full Indentation Support */}
+                      <div className="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 shadow-inner">
                         <textarea
-                          rows={11}
+                          rows={13}
                           value={currentCode}
                           onChange={(e) => setCodeAnswer(e.target.value)}
-                          className="w-full bg-slate-950 font-mono text-xs text-emerald-300 p-4 rounded-2xl border border-slate-800 focus:outline-none focus:border-emerald-500 shadow-inner"
-                          placeholder="# Write your program here..."
+                          onKeyDown={(e) => handlePythonIndentKeyDown(e, currentCode, setCodeAnswer)}
+                          className="w-full bg-transparent font-mono text-xs text-emerald-300 p-4 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 leading-relaxed resize-y select-text"
+                          placeholder="# Write your program here... (Press Tab for 4 spaces, Shift+Tab to dedent)"
+                          spellCheck={false}
                         />
                       </div>
                     </div>
 
-                    {/* INTERACTIVE TERMINAL / OUTPUT SCREEN */}
+                    {/* INTERACTIVE TERMINAL & PYTHON REPL */}
                     <div className="rounded-2xl border border-slate-800 bg-black overflow-hidden shadow-2xl">
-                      {/* Terminal Top Window Bar */}
+                      {/* Terminal Top Window Bar with Dual Mode Tabs */}
                       <div className="px-4 py-2 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="w-3 h-3 rounded-full bg-rose-500 inline-block"></span>
-                          <span className="w-3 h-3 rounded-full bg-amber-500 inline-block"></span>
-                          <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
-                          <span className="text-xs font-mono text-slate-400 ml-2">
-                            bash — terminal (Interactive Output Console)
-                          </span>
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-3 h-3 rounded-full bg-rose-500 inline-block"></span>
+                            <span className="w-3 h-3 rounded-full bg-amber-500 inline-block"></span>
+                            <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
+                          </div>
+
+                          {/* Terminal Mode Switcher Tabs */}
+                          <div className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800 ml-2">
+                            <button
+                              type="button"
+                              onClick={() => setTerminalTab('output')}
+                              className={`px-2.5 py-1 rounded text-xs font-mono font-semibold transition ${
+                                terminalTab === 'output'
+                                  ? 'bg-emerald-600 text-white shadow-xs'
+                                  : 'text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              $ python3 main.py (Test Runner)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setTerminalTab('repl')}
+                              className={`px-2.5 py-1 rounded text-xs font-mono font-semibold transition ${
+                                terminalTab === 'repl'
+                                  ? 'bg-purple-600 text-white shadow-xs'
+                                  : 'text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              &gt;&gt;&gt; Python REPL (Interactive Shell)
+                            </button>
+                          </div>
                         </div>
-                        {terminalOutput && (
-                          <button
-                            onClick={() => setTerminalOutput('')}
-                            className="text-[10px] text-slate-400 hover:text-white font-mono"
-                          >
-                            Clear Console
-                          </button>
-                        )}
+
+                        <div className="flex items-center gap-2">
+                          {terminalTab === 'output' && terminalOutput && (
+                            <button
+                              onClick={() => setTerminalOutput('')}
+                              className="text-[10px] text-slate-400 hover:text-white font-mono px-2 py-0.5 rounded bg-slate-800"
+                            >
+                              Clear
+                            </button>
+                          )}
+                          {terminalTab === 'repl' && (
+                            <button
+                              onClick={() => setReplHistory([])}
+                              className="text-[10px] text-slate-400 hover:text-white font-mono px-2 py-0.5 rounded bg-slate-800"
+                            >
+                              Clear Shell
+                            </button>
+                          )}
+                        </div>
                       </div>
 
-                      {/* Terminal Body Screen */}
-                      <div className="p-4 min-h-[140px] max-h-60 overflow-y-auto font-mono text-xs text-emerald-400 leading-relaxed whitespace-pre-wrap select-text">
-                        {terminalOutput ? (
-                          terminalOutput
-                        ) : (
-                          <div className="text-slate-500 flex flex-col items-center justify-center py-6 text-center">
-                            <span>Interactive Terminal Ready.</span>
-                            <span className="text-[11px] text-slate-600 mt-1">
-                              Click "▶ Run Code" below to compile your algorithm against test cases.
-                            </span>
+                      {/* Tab 1: Terminal Output ($ python3 main.py) */}
+                      {terminalTab === 'output' && (
+                        <div className="p-4 min-h-[150px] max-h-64 overflow-y-auto font-mono text-xs text-emerald-400 leading-relaxed whitespace-pre-wrap select-text">
+                          {terminalOutput ? (
+                            terminalOutput
+                          ) : (
+                            <div className="text-slate-500 flex flex-col items-center justify-center py-6 text-center space-y-1">
+                              <span className="text-slate-400 font-semibold">Interactive Python Terminal Ready.</span>
+                              <span className="text-[11px] text-slate-500">
+                                Click "▶ Run Code in Terminal" below to compile your solution against test cases.
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Tab 2: Interactive Python REPL (>>>) */}
+                      {terminalTab === 'repl' && (
+                        <div className="p-4 flex flex-col h-64 font-mono text-xs bg-slate-950">
+                          {/* REPL History stream */}
+                          <div className="flex-1 overflow-y-auto space-y-1 pr-1 text-slate-200">
+                            {replHistory.map((item, idx) => (
+                              <div key={idx} className="leading-relaxed">
+                                {item.type === 'system' && (
+                                  <p className="text-purple-400 text-[11px]">{item.text}</p>
+                                )}
+                                {item.type === 'input' && (
+                                  <p className="text-emerald-300 font-bold">{item.text}</p>
+                                )}
+                                {item.type === 'output' && (
+                                  <p className="text-slate-100 whitespace-pre-wrap">{item.text}</p>
+                                )}
+                                {item.type === 'error' && (
+                                  <p className="text-rose-400 whitespace-pre-wrap">{item.text}</p>
+                                )}
+                              </div>
+                            ))}
                           </div>
-                        )}
-                      </div>
+
+                          {/* REPL Interactive Prompt Input Line */}
+                          <form onSubmit={handleReplSubmit} className="pt-2 border-t border-slate-800 flex items-center gap-2">
+                            <span className="text-emerald-400 font-bold text-sm select-none">&gt;&gt;&gt;</span>
+                            <input
+                              type="text"
+                              value={replInput}
+                              onChange={(e) => setReplInput(e.target.value)}
+                              placeholder="Type Python expression (e.g. 2**10 or import math; math.pi) and press Enter..."
+                              className="flex-1 bg-transparent font-mono text-xs text-white focus:outline-none placeholder-slate-600"
+                            />
+                            <button
+                              type="submit"
+                              className="px-3 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold"
+                            >
+                              Eval
+                            </button>
+                          </form>
+                        </div>
+                      )}
                     </div>
 
                     {/* Action Bar */}

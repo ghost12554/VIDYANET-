@@ -20,6 +20,7 @@ import TeacherBotMarket from './components/teacher/TeacherBotMarket';
 import ChitChatView from './components/common/ChitChatView';
 import ProfileView from './components/common/ProfileView';
 import TeacherReminderPopup from './components/common/TeacherReminderPopup';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 function MainLayout() {
   const { currentUser, userRole, activeMode } = useCollege();
@@ -78,7 +79,9 @@ function MainLayout() {
 
         {/* Dynamic Mode Stage */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0 overflow-y-auto">
-          {renderContent()}
+          <ErrorBoundary title="View Recovery">
+            {renderContent()}
+          </ErrorBoundary>
         </main>
       </div>
 

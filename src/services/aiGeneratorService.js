@@ -1556,25 +1556,48 @@ Required JSON Schema:
   const rawChallenges = parsed?.challenges || parsed?.problems || null;
 
   if (Array.isArray(rawChallenges) && rawChallenges.length > 0) {
-    const formatted = rawChallenges.slice(0, count).map((c, idx) => ({
-      id: `code-${idx + 1}-${Date.now()}`,
-      title: c.title || `Challenge ${idx + 1}: ${cleanTopic}`,
-      difficulty: c.difficulty || (ruleAnalysis.isHard ? 'Hard' : ruleAnalysis.isEasy ? 'Easy' : 'Medium'),
-      marks: Number(c.marks) || marksPerChallenge,
-      description: c.description || `Implement an optimal solution for ${cleanTopic} satisfying rules: ${cleanRules}.`,
-      inputFormat: c.inputFormat || 'Read inputs from function arguments.',
-      outputFormat: c.outputFormat || 'Return the computed result matching constraints.',
-      starterCode: c.starterCode || {
-        python: `def solve_${cleanTopic.toLowerCase().replace(/[^a-z0-9]/g, '_')}(data):\n    # TODO: Implement solution adhering to: ${cleanRules}\n    return data\n\nprint("Result:", solve_${cleanTopic.toLowerCase().replace(/[^a-z0-9]/g, '_')}([1, 2, 3]))\n`,
-        javascript: `function solve(data) {\n    return data;\n}\n`,
-      },
-      testCases: Array.isArray(c.testCases) && c.testCases.length > 0
+    const formatted = rawChallenges.slice(0, count).map((c, idx) => {
+      let pyCode = `def solve_${cleanTopic.toLowerCase().replace(/[^a-z0-9]/g, '_')}(data):\n    # TODO: Implement solution adhering to: ${cleanRules}\n    return data\n\nprint("Result:", solve_${cleanTopic.toLowerCase().replace(/[^a-z0-9]/g, '_')}([1, 2, 3]))\n`;
+      let jsCode = `function solve(data) {\n    return data;\n}\n`;
+
+      if (typeof c.starterCode === 'string') {
+        pyCode = c.starterCode;
+      } else if (c.starterCode && typeof c.starterCode === 'object') {
+        if (typeof c.starterCode.python === 'string') pyCode = c.starterCode.python;
+        else if (typeof c.starterCode.code === 'string') pyCode = c.starterCode.code;
+        if (typeof c.starterCode.javascript === 'string') jsCode = c.starterCode.javascript;
+      }
+
+      const rawTests = Array.isArray(c.testCases) && c.testCases.length > 0
         ? c.testCases
         : [
             { input: '[1, 2, 3]', expectedOutput: '[1, 2, 3]', explanation: 'Baseline test case.' },
             { input: '[]', expectedOutput: '[]', explanation: 'Boundary edge case.' },
-          ],
-    }));
+          ];
+
+      const safeTestCases = rawTests.map((tc) => ({
+        input: typeof tc.input === 'object' ? JSON.stringify(tc.input) : String(tc.input ?? ''),
+        expectedOutput: typeof (tc.expectedOutput ?? tc.expected) === 'object'
+          ? JSON.stringify(tc.expectedOutput ?? tc.expected)
+          : String(tc.expectedOutput ?? tc.expected ?? ''),
+        explanation: typeof tc.explanation === 'object' ? JSON.stringify(tc.explanation) : String(tc.explanation ?? ''),
+      }));
+
+      return {
+        id: `code-${idx + 1}-${Date.now()}`,
+        title: String(c.title || `Challenge ${idx + 1}: ${cleanTopic}`),
+        difficulty: String(c.difficulty || (ruleAnalysis.isHard ? 'Hard' : ruleAnalysis.isEasy ? 'Easy' : 'Medium')),
+        marks: Number(c.marks) || marksPerChallenge,
+        description: String(c.description || `Implement an optimal solution for ${cleanTopic} satisfying rules: ${cleanRules}.`),
+        inputFormat: String(c.inputFormat || 'Read inputs from function arguments.'),
+        outputFormat: String(c.outputFormat || 'Return the computed result matching constraints.'),
+        starterCode: {
+          python: pyCode,
+          javascript: jsCode,
+        },
+        testCases: safeTestCases,
+      };
+    });
 
     return {
       id: `test-${Date.now()}`,
@@ -1604,16 +1627,28 @@ Required JSON Schema:
     const formatted = [];
     for (let i = 0; i < count; i++) {
       const c = matchedBank.challenges[i % matchedBank.challenges.length];
+      const rawTests = Array.isArray(c.testCases) ? c.testCases : [];
+      const safeTestCases = rawTests.map((tc) => ({
+        input: typeof tc.input === 'object' ? JSON.stringify(tc.input) : String(tc.input ?? ''),
+        expectedOutput: typeof (tc.expectedOutput ?? tc.expected) === 'object'
+          ? JSON.stringify(tc.expectedOutput ?? tc.expected)
+          : String(tc.expectedOutput ?? tc.expected ?? ''),
+        explanation: typeof tc.explanation === 'object' ? JSON.stringify(tc.explanation) : String(tc.explanation ?? ''),
+      }));
+
       formatted.push({
         id: `code-${i + 1}-${Date.now()}`,
-        title: c.title,
-        difficulty: c.difficulty,
+        title: String(c.title || 'Coding Challenge'),
+        difficulty: String(c.difficulty || 'Medium'),
         marks: marksPerChallenge,
-        description: c.description,
+        description: String(c.description || ''),
         inputFormat: 'Function parameter input.',
         outputFormat: 'Return computed result value.',
-        starterCode: c.starterCode,
-        testCases: c.testCases,
+        starterCode: {
+          python: typeof c.starterCode?.python === 'string' ? c.starterCode.python : String(c.starterCode || ''),
+          javascript: typeof c.starterCode?.javascript === 'string' ? c.starterCode.javascript : '',
+        },
+        testCases: safeTestCases,
       });
     }
 

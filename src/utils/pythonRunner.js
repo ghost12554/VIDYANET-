@@ -1,14 +1,22 @@
 /**
- * Browser-based Python Execution Engine for Teacher Co-Pilot (AI Assistant for Teachers) Coding Terminal
- * Executes Python code entirely client-side with zero external API keys or paid services.
- * Uses Pyodide (WebAssembly Python 3) when online, and a robust offline AST simulator fallback.
+ * Browser-based Python Execution Engine & Indentation Handler
+ * Provides:
+ * 1. executePythonInBrowser(code, testCases): Runs student code via Pyodide (WASM Python 3.12) or client simulator.
+ * 2. runPythonReplCommand(command, sessionScope): Interactive `>>> ` Python REPL shell.
+ * 3. handlePythonIndentKeyDown(e, code, setCode): Tab key (4 spaces), Auto-indent after ':', Shift-Tab dedent.
+ * 4. formatPythonCodeIndentation(code): Auto-formats code with clean 4-space indentation.
  */
 
 let pyodidePromise = null;
+let pyodideInstance = null;
 
-async function loadPyodideEngine() {
+export async function loadPyodideEngine() {
   if (typeof window === 'undefined') return null;
-  if (window.__vidyanet_pyodide) return window.__vidyanet_pyodide;
+  if (pyodideInstance) return pyodideInstance;
+  if (window.__vidyanet_pyodide) {
+    pyodideInstance = window.__vidyanet_pyodide;
+    return pyodideInstance;
+  }
 
   if (!pyodidePromise) {
     pyodidePromise = new Promise(async (resolve) => {
@@ -29,11 +37,12 @@ async function loadPyodideEngine() {
           const pyodide = await window.loadPyodide({
             indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/',
           });
+          pyodideInstance = pyodide;
           window.__vidyanet_pyodide = pyodide;
           return resolve(pyodide);
         }
       } catch (err) {
-        console.warn('Pyodide CDN initialization fallback:', err);
+        console.warn('Pyodide CDN initialization fallback to client simulator:', err);
       }
       resolve(null);
     });
@@ -89,29 +98,31 @@ for k, v in __user_globals.items():
 
 raw_test_cases = ${JSON.stringify(testCases)}
 for idx, tc in enumerate(raw_test_cases):
-    tc_input = tc.get('input', '')
-    tc_expected = str(tc.get('expectedOutput', tc.get('expected', ''))).strip()
+    tc_input_raw = tc.get('input', '')
+    tc_input_str = json.dumps(tc_input_raw) if isinstance(tc_input_raw, (dict, list)) else str(tc_input_raw)
+    
+    tc_expected_raw = tc.get('expectedOutput', tc.get('expected', ''))
+    tc_expected_str = json.dumps(tc_expected_raw) if isinstance(tc_expected_raw, (dict, list)) else str(tc_expected_raw).strip()
     
     if __func_to_test:
         fname, fn = __func_to_test
         try:
-            # Parse input as python literal
             try:
-                arg_val = eval(tc_input)
+                arg_val = eval(str(tc_input_raw))
             except Exception:
-                arg_val = tc_input
+                arg_val = tc_input_raw
                 
             if isinstance(arg_val, tuple):
                 actual_res = fn(*arg_val)
             else:
                 actual_res = fn(arg_val)
                 
-            actual_str = str(actual_res)
-            passed = (actual_str.strip() == tc_expected) or (repr(actual_res).strip() == tc_expected)
+            actual_str = json.dumps(actual_res) if isinstance(actual_res, (dict, list)) else str(actual_res)
+            passed = (actual_str.strip() == tc_expected_str) or (repr(actual_res).strip() == tc_expected_str)
             __test_results.append({
                 'id': idx + 1,
-                'input': str(tc_input),
-                'expected': tc_expected,
+                'input': tc_input_str,
+                'expected': tc_expected_str,
                 'actual': actual_str,
                 'passed': passed,
                 'error': None
@@ -119,8 +130,8 @@ for idx, tc in enumerate(raw_test_cases):
         except Exception as e:
             __test_results.append({
                 'id': idx + 1,
-                'input': str(tc_input),
-                'expected': tc_expected,
+                'input': tc_input_str,
+                'expected': tc_expected_str,
                 'actual': 'Error',
                 'passed': False,
                 'error': str(e)
@@ -128,11 +139,11 @@ for idx, tc in enumerate(raw_test_cases):
     else:
         __test_results.append({
             'id': idx + 1,
-            'input': str(tc_input),
-            'expected': tc_expected,
-            'actual': 'No callable function found',
+            'input': tc_input_str,
+            'expected': tc_expected_str,
+            'actual': 'No function found',
             'passed': False,
-            'error': 'No function defined'
+            'error': 'No callable function defined'
         })
 `
     : ''
@@ -203,25 +214,21 @@ json.dumps({
 
 /**
  * Robust Client-Side Lightweight Python Simulator
- * Handles prints, standard functions, returns, loops, lists, and test assertions offline.
  */
 function executeWithClientSimulator(code, testCases = []) {
   const startTime = performance.now();
   const outputs = [];
   const lines = code.split('\n');
 
-  // Simple print extractor & statement interpreter
   try {
     for (const line of lines) {
       const trimmed = line.trim();
       if (trimmed.startsWith('#') || !trimmed) continue;
 
-      // Match print(...)
       const printMatch = trimmed.match(/^print\s*\((.*)\)$/);
       if (printMatch) {
         const rawContent = printMatch[1];
         try {
-          // evaluate simple expressions
           const cleanJs = rawContent
             .replace(/\bTrue\b/g, 'true')
             .replace(/\bFalse\b/g, 'false')
@@ -238,21 +245,22 @@ function executeWithClientSimulator(code, testCases = []) {
     outputs.push(`SyntaxError: ${err.message}`);
   }
 
-  // Evaluate test cases
   const testResults = [];
   let allPassed = true;
 
   testCases.forEach((tc, idx) => {
-    // If student code defines a function, test matching
-    const expected = String(tc.expectedOutput || tc.expected || '').trim();
-    // Simulate passing if student wrote working solution code
+    const rawExpected = tc.expectedOutput ?? tc.expected ?? '';
+    const expected = typeof rawExpected === 'object' ? JSON.stringify(rawExpected) : String(rawExpected).trim();
+    const rawInput = tc.input ?? '';
+    const inputStr = typeof rawInput === 'object' ? JSON.stringify(rawInput) : String(rawInput);
+
     const hasReturn = code.includes('return');
     const hasDef = code.includes('def ');
     const passed = hasDef && hasReturn && !code.includes('pass\n') && !code.includes('TODO');
 
     testResults.push({
       id: idx + 1,
-      input: String(tc.input),
+      input: inputStr,
       expected: expected,
       actual: passed ? expected : 'No computed return value',
       passed: passed,
@@ -300,7 +308,6 @@ function executeWithClientSimulator(code, testCases = []) {
 
 /**
  * Main Python Execution Function
- * Tries Pyodide first for 100% full Python 3.12 support; falls back to fast client simulator.
  */
 export async function executePythonInBrowser(code, testCases = []) {
   if (!code || !code.trim()) {
@@ -323,4 +330,177 @@ export async function executePythonInBrowser(code, testCases = []) {
   }
 
   return executeWithClientSimulator(code, testCases);
+}
+
+/**
+ * Interactive Python REPL Command Runner (>>> prompt)
+ */
+let replContext = {};
+
+export async function runPythonReplCommand(command) {
+  const trimmed = (command || '').trim();
+  if (!trimmed) return '';
+
+  try {
+    const pyodide = await loadPyodideEngine();
+    if (pyodide) {
+      try {
+        const res = await pyodide.runPythonAsync(`
+import sys
+import io
+
+__repl_stdout = io.StringIO()
+sys.stdout = __repl_stdout
+
+try:
+    __repl_result = eval(${JSON.stringify(trimmed)})
+    if __repl_result is not None:
+        print(__repl_result)
+except SyntaxError:
+    exec(${JSON.stringify(trimmed)})
+
+sys.stdout = sys.__stdout__
+__repl_stdout.getvalue().strip()
+        `);
+        return res || '';
+      } catch (err) {
+        return `Traceback (most recent call last):\n${err.message || String(err)}`;
+      }
+    }
+  } catch (e) {}
+
+  // Client simulator fallback for REPL
+  try {
+    if (trimmed.startsWith('print(') && trimmed.endsWith(')')) {
+      const inner = trimmed.slice(6, -1);
+      return inner.replace(/^['"]|['"]$/g, '');
+    }
+    // Math expressions
+    const cleanMath = trimmed
+      .replace(/\bTrue\b/g, 'true')
+      .replace(/\bFalse\b/g, 'false')
+      .replace(/\bNone\b/g, 'null');
+    // eslint-disable-next-line no-new-func
+    const val = Function(`return (${cleanMath})`)();
+    return val !== undefined ? String(val) : '';
+  } catch (err) {
+    return `NameError: name '${trimmed}' is not defined`;
+  }
+}
+
+/**
+ * Smart Python Indentation Keyboard Event Handler
+ * - Tab: Inserts 4 spaces at cursor without losing textarea focus
+ * - Shift+Tab: Dedents 4 spaces
+ * - Enter: Preserves indentation of previous line; if ends with ':', adds 4 extra spaces
+ * - Backspace: If 4 leading spaces precede cursor, deletes all 4 at once
+ */
+export function handlePythonIndentKeyDown(e, code = '', setCode) {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const textarea = e.target;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+
+    if (e.shiftKey) {
+      // Shift+Tab: Dedent
+      const lineStart = code.lastIndexOf('\n', start - 1) + 1;
+      const line = code.slice(lineStart, start);
+      if (line.startsWith('    ')) {
+        const nextCode = code.slice(0, lineStart) + line.slice(4) + code.slice(start);
+        setCode(nextCode);
+        setTimeout(() => {
+          textarea.selectionStart = textarea.selectionEnd = Math.max(lineStart, start - 4);
+        }, 0);
+      }
+    } else {
+      // Tab: Insert 4 spaces
+      const nextCode = code.substring(0, start) + '    ' + code.substring(end);
+      setCode(nextCode);
+      setTimeout(() => {
+        textarea.selectionStart = textarea.selectionEnd = start + 4;
+      }, 0);
+    }
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    const textarea = e.target;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+
+    // Find current line before cursor
+    const lineStart = code.lastIndexOf('\n', start - 1) + 1;
+    const currentLine = code.substring(lineStart, start);
+
+    // Calculate existing leading whitespace
+    const indentMatch = currentLine.match(/^(\s*)/);
+    let indent = indentMatch ? indentMatch[1] : '';
+
+    // If current line ends with ':' (e.g. def, if, for, while, else, try), add 4 spaces
+    if (currentLine.trim().endsWith(':')) {
+      indent += '    ';
+    }
+
+    const nextCode = code.substring(0, start) + '\n' + indent + code.substring(end);
+    setCode(nextCode);
+    setTimeout(() => {
+      textarea.selectionStart = textarea.selectionEnd = start + 1 + indent.length;
+    }, 0);
+  } else if (e.key === 'Backspace') {
+    const textarea = e.target;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+
+    // If cursor is not a range, check if 4 spaces are right behind cursor
+    if (start === end && start >= 4) {
+      const prevFour = code.substring(start - 4, start);
+      const lineStart = code.lastIndexOf('\n', start - 1) + 1;
+      const textBeforeCursorOnLine = code.substring(lineStart, start);
+
+      // Only delete 4 spaces at once if they are purely leading indentation spaces
+      if (prevFour === '    ' && /^\s+$/.test(textBeforeCursorOnLine)) {
+        e.preventDefault();
+        const nextCode = code.substring(0, start - 4) + code.substring(start);
+        setCode(nextCode);
+        setTimeout(() => {
+          textarea.selectionStart = textarea.selectionEnd = start - 4;
+        }, 0);
+      }
+    }
+  }
+}
+
+/**
+ * Format & Clean Python Indentation (PEP 8 4-space auto-indent)
+ */
+export function formatPythonCodeIndentation(code = '') {
+  if (!code) return '';
+  const lines = code.split('\n');
+  let currentIndentLevel = 0;
+  const formatted = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) {
+      formatted.push('');
+      continue;
+    }
+
+    // Dedent on block closing keywords
+    if (/^(return|pass|break|continue|raise)\b/.test(line) && currentIndentLevel > 0) {
+      // Keep level for this line, then drop after if not followed by colon
+    }
+
+    if (/^(else|elif|except|finally):/.test(line)) {
+      currentIndentLevel = Math.max(0, currentIndentLevel - 1);
+    }
+
+    const spaces = '    '.repeat(currentIndentLevel);
+    formatted.push(spaces + line);
+
+    if (line.endsWith(':')) {
+      currentIndentLevel++;
+    }
+  }
+
+  return formatted.join('\n');
 }

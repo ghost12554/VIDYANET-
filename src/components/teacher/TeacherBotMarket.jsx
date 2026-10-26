@@ -1461,9 +1461,15 @@ export default function TeacherBotMarket() {
               {generatedCodeTest.type === 'coding' || generatedCodeTest.type === 'code' ? (() => {
                 const challenge = generatedCodeTest.challenges?.[0] || generatedCodeTest.problems?.[0] || {};
                 const pyStarter =
-                  typeof challenge.starterCode === 'object'
-                    ? challenge.starterCode?.python
-                    : challenge.starterCode;
+                  typeof challenge.starterCode === 'string'
+                    ? challenge.starterCode
+                    : typeof challenge.starterCode?.python === 'string'
+                    ? challenge.starterCode.python
+                    : typeof challenge.starterCode?.code === 'string'
+                    ? challenge.starterCode.code
+                    : typeof challenge.starterCode === 'object'
+                    ? JSON.stringify(challenge.starterCode, null, 2)
+                    : '# Python solution template';
 
                 return (
                   <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-xs space-y-3">
@@ -1495,9 +1501,13 @@ export default function TeacherBotMarket() {
                             <div key={tcIdx} className="p-2 rounded-lg bg-slate-950 border border-slate-800/60 font-mono text-[11px] flex flex-wrap items-center justify-between gap-2">
                               <div>
                                 <span className="text-purple-400 mr-2">Case {tcIdx + 1}:</span>
-                                <span className="text-slate-300">Input: <code className="text-indigo-300">{tc.input}</code></span>
+                                <span className="text-slate-300">
+                                  Input: <code className="text-indigo-300">{typeof tc.input === 'object' ? JSON.stringify(tc.input) : String(tc.input ?? '')}</code>
+                                </span>
                               </div>
-                              <span className="text-emerald-400">Expected: {tc.expectedOutput || tc.expected}</span>
+                              <span className="text-emerald-400">
+                                Expected: {typeof (tc.expectedOutput ?? tc.expected) === 'object' ? JSON.stringify(tc.expectedOutput ?? tc.expected) : String(tc.expectedOutput ?? tc.expected ?? '')}
+                              </span>
                             </div>
                           ))}
                         </div>
@@ -1507,7 +1517,7 @@ export default function TeacherBotMarket() {
                 );
               })() : (
                 <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-xs text-slate-300 font-mono">
-                  {generatedCodeTest.passage}
+                  {typeof generatedCodeTest.passage === 'object' ? JSON.stringify(generatedCodeTest.passage) : String(generatedCodeTest.passage || '')}
                 </div>
               )}
             </div>
@@ -1551,7 +1561,7 @@ export default function TeacherBotMarket() {
                               {sub.studentName || data.studentName || 'Student'} • {sub.title}
                             </p>
                             <p className="text-[11px] text-slate-400 font-mono">
-                              Dept: {sub.department || data.department || 'AIML'} • Recorded at {new Date(sub.timestamp).toLocaleTimeString()}
+                              Dept: {sub.department || data.department || 'AIML'} • Recorded at {sub.timestamp ? new Date(sub.timestamp).toLocaleTimeString() : 'Recently'}
                             </p>
                           </div>
                         </div>
@@ -3276,7 +3286,7 @@ export default function TeacherBotMarket() {
                         </div>
                         <p className="text-slate-300 mt-1">{item.details}</p>
                         <p className="text-[10px] text-slate-500 mt-1 font-mono">
-                          Timestamp: {new Date(item.timestamp).toLocaleString()} • Creator: {item.creator}
+                          Timestamp: {item.timestamp ? new Date(item.timestamp).toLocaleString() : 'Recently'} • Creator: {item.creator}
                         </p>
                       </div>
 
