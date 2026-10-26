@@ -66,8 +66,8 @@
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/ghost12554/VIDYANET-.git
-cd VIDYANET-
+git clone https://github.com/ghost12554/ai-teacher-copilot.git
+cd ai-teacher-copilot
 
 # 2. Install dependencies
 npm install
