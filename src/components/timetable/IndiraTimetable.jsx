@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import { useCollege } from '../../context/CollegeContext';
-import confetti from 'canvas-confetti';
 import {
   Calendar,
   Clock,
@@ -105,13 +104,6 @@ export default function IndiraTimetable({ isEditable = false }) {
     importTimetable(newTimetableData);
     setShowImporterModal(false);
     setIsEditingGrid(false);
-
-    // Fire celebratory confetti!
-    confetti({
-      particleCount: 100,
-      spread: 80,
-      origin: { y: 0.6 },
-    });
 
     setUpdateSuccessBanner({
       title: 'Full-View Master Timetable Updated Successfully!',

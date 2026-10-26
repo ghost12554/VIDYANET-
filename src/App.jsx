@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { CollegeProvider, useCollege } from './context/CollegeContext';
+import { GoogleDialogProvider } from './components/common/GoogleDialog';
 import Navbar from './components/common/Navbar';
 import Sidebar from './components/common/Sidebar';
 import AuthModal from './components/auth/AuthModal';
@@ -93,7 +94,9 @@ function MainLayout() {
 export default function App() {
   return (
     <CollegeProvider>
-      <MainLayout />
+      <GoogleDialogProvider>
+        <MainLayout />
+      </GoogleDialogProvider>
     </CollegeProvider>
   );
 }

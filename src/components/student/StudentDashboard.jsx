@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useCollege } from '../../context/CollegeContext';
+import { useGoogleDialog } from '../common/GoogleDialog';
 import LectureTrackerCard from '../lectureTracker/LectureTrackerCard';
 import IndiraTimetable from '../timetable/IndiraTimetable';
 import {
@@ -49,6 +50,7 @@ export default function StudentDashboard() {
     directJoinMeeting,
     openMeetingDirectly,
   } = useCollege();
+  const { showConfirm, showAlert } = useGoogleDialog();
 
   const [activeTaskTab, setActiveTaskTab] = useState('ALL'); // 'ALL' | 'DONE' | 'REMAINING' | 'UNDONE'
   const [submittingTaskId, setSubmittingTaskId] = useState(null);
@@ -738,10 +740,18 @@ export default function StudentDashboard() {
                 {/* 3. Delete All */}
                 <button
                   onClick={() => {
-                    if (confirm('Clear all campus notifications?')) {
-                      clearAllNotifications();
-                      setSelectedNotifIds([]);
-                    }
+                    showConfirm({
+                      title: 'Clear All Campus Notifications?',
+                      message: 'Are you sure you want to delete all announcements and alerts from your board? This cannot be undone.',
+                      confirmText: 'Clear Notifications',
+                      cancelText: 'Cancel',
+                      type: 'danger',
+                      onConfirm: () => {
+                        clearAllNotifications();
+                        setSelectedNotifIds([]);
+                        showAlert('All campus notifications cleared', 'success');
+                      },
+                    });
                   }}
                   className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-300 border border-slate-700 font-semibold transition flex items-center gap-1.5"
                 >

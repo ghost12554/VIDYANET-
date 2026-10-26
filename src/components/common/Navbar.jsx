@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useCollege } from '../../context/CollegeContext';
+import { useGoogleDialog } from './GoogleDialog';
 import {
   GraduationCap,
   Bell,
@@ -32,6 +33,7 @@ export default function Navbar({ onOpenAuth }) {
     deleteNotifications24Hours,
     openMeetingDirectly,
   } = useCollege();
+  const { showConfirm, showAlert } = useGoogleDialog();
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -61,10 +63,18 @@ export default function Navbar({ onOpenAuth }) {
   };
 
   const handleClearAll = () => {
-    if (confirm('Delete all campus notifications?')) {
-      clearAllNotifications();
-      setSelectedNotifIds([]);
-    }
+    showConfirm({
+      title: 'Clear All Campus Notifications?',
+      message: 'Are you sure you want to delete all announcements and alerts from the notification center? This cannot be undone.',
+      confirmText: 'Clear Notifications',
+      cancelText: 'Cancel',
+      type: 'danger',
+      onConfirm: () => {
+        clearAllNotifications();
+        setSelectedNotifIds([]);
+        showAlert('All campus notifications cleared', 'success');
+      },
+    });
   };
 
   const handleDelete24Hours = (mode = 'older') => {

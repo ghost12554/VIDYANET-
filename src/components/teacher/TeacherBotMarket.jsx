@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useCollege } from '../../context/CollegeContext';
+import { useGoogleDialog } from '../common/GoogleDialog';
 import {
   generateAIQuiz,
   generateAIAssignment,
@@ -78,6 +79,7 @@ export default function TeacherBotMarket() {
     assignments,
     gradeAssignment,
   } = useCollege();
+  const { showConfirm, showAlert } = useGoogleDialog();
 
   // Active sub-panel in BotMarket
   const [activeSubPanel, setActiveSubPanel] = useState('quizGen');
@@ -740,25 +742,33 @@ export default function TeacherBotMarket() {
 
   const handleDeleteSelectedHistory = () => {
     if (selectedHistoryIds.length === 0) return;
-    if (
-      confirm(
-        `Are you sure you want to delete ${selectedHistoryIds.length} selected attendance record(s)?`
-      )
-    ) {
-      deleteSelectedAttendanceRecords(selectedHistoryIds);
-      setSelectedHistoryIds([]);
-    }
+    showConfirm({
+      title: 'Delete Selected Attendance Records?',
+      message: `Are you sure you want to delete ${selectedHistoryIds.length} selected attendance record(s)?`,
+      confirmText: 'Delete Records',
+      cancelText: 'Cancel',
+      type: 'danger',
+      onConfirm: () => {
+        deleteSelectedAttendanceRecords(selectedHistoryIds);
+        setSelectedHistoryIds([]);
+        showAlert('Selected attendance records deleted', 'success');
+      },
+    });
   };
 
   const handleClearAllHistory = () => {
-    if (
-      confirm(
-        'Are you sure you want to delete ALL attendance history records? This cannot be undone.'
-      )
-    ) {
-      clearAllAttendanceHistory(historyDeptFilter === 'all' ? 'ALL' : historyDeptFilter);
-      setSelectedHistoryIds([]);
-    }
+    showConfirm({
+      title: 'Delete All Attendance History?',
+      message: 'Are you sure you want to delete ALL attendance history records? This cannot be undone.',
+      confirmText: 'Delete All Records',
+      cancelText: 'Cancel',
+      type: 'danger',
+      onConfirm: () => {
+        clearAllAttendanceHistory(historyDeptFilter === 'all' ? 'ALL' : historyDeptFilter);
+        setSelectedHistoryIds([]);
+        showAlert('All attendance records cleared', 'success');
+      },
+    });
   };
 
   // Filter Bot History
@@ -3213,9 +3223,17 @@ export default function TeacherBotMarket() {
 
               <button
                 onClick={() => {
-                  if (confirm('Clear all BotMarket history logs?')) {
-                    clearBotHistory('all');
-                  }
+                  showConfirm({
+                    title: 'Clear All BotMarket History Logs?',
+                    message: 'Are you sure you want to delete all saved generator and prompt history records?',
+                    confirmText: 'Clear Logs',
+                    cancelText: 'Cancel',
+                    type: 'danger',
+                    onConfirm: () => {
+                      clearBotHistory('all');
+                      showAlert('BotMarket history logs cleared', 'info');
+                    },
+                  });
                 }}
                 className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-900/40 text-rose-300 border border-slate-700 text-xs font-semibold transition"
               >

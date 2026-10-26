@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { useCollege } from '../../context/CollegeContext';
+import { useGoogleDialog } from '../common/GoogleDialog';
 import LectureTrackerCard from '../lectureTracker/LectureTrackerCard';
 import IndiraTimetable from '../timetable/IndiraTimetable';
-import confetti from 'canvas-confetti';
 import {
   Sparkles,
   UserCheck,
@@ -48,6 +48,7 @@ export default function TeacherDashboard() {
     clearAllNotifications,
     deleteNotifications24Hours,
   } = useCollege();
+  const { showConfirm, showAlert } = useGoogleDialog();
 
   // Notification Selection State
   const [selectedNotifIds, setSelectedNotifIds] = useState([]);
@@ -72,12 +73,6 @@ export default function TeacherDashboard() {
   const approvedStudents = students.filter((s) => s.status === 'APPROVED');
 
   const handleApprove = (student) => {
-    // Fire celebratory confetti!
-    confetti({
-      particleCount: 80,
-      spread: 70,
-      origin: { y: 0.6 },
-    });
     approveStudent(student.id);
   };
 
@@ -341,9 +336,17 @@ export default function TeacherDashboard() {
                     </button>
                     <button
                       onClick={() => {
-                        if (window.confirm(`Delete task "${t.title}"?`)) {
-                          deleteTask(t.id);
-                        }
+                        showConfirm({
+                          title: `Delete Task "${t.title}"?`,
+                          message: 'This coursework task will be permanently removed for all enrolled students.',
+                          confirmText: 'Delete Task',
+                          cancelText: 'Cancel',
+                          type: 'danger',
+                          onConfirm: () => {
+                            deleteTask(t.id);
+                            showAlert(`Task "${t.title}" removed`, 'info');
+                          },
+                        });
                       }}
                       className="p-1 rounded-lg bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 transition"
                       title="Delete Task"
@@ -529,10 +532,18 @@ export default function TeacherDashboard() {
                 {/* 3. Delete All */}
                 <button
                   onClick={() => {
-                    if (confirm('Clear all campus notifications?')) {
-                      clearAllNotifications();
-                      setSelectedNotifIds([]);
-                    }
+                    showConfirm({
+                      title: 'Clear All Campus Notifications?',
+                      message: 'Are you sure you want to delete all announcements and alerts from the campus board? This cannot be undone.',
+                      confirmText: 'Clear Notifications',
+                      cancelText: 'Cancel',
+                      type: 'danger',
+                      onConfirm: () => {
+                        clearAllNotifications();
+                        setSelectedNotifIds([]);
+                        showAlert('All campus notifications cleared successfully', 'success');
+                      },
+                    });
                   }}
                   className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-300 border border-slate-700 font-semibold transition flex items-center gap-1.5"
                 >
