@@ -152,12 +152,22 @@ export function CollegeProvider({ children }) {
 
   // Current session (null if not logged in, requiring login page)
   const [currentUser, setCurrentUser] = useState(() => {
-    return loadState('currentUser', null);
+    const saved = loadState('currentUser', null);
+    if (!saved || typeof saved !== 'object') return null;
+    return saved;
   });
   const [userRole, setUserRole] = useState(() => {
-    return loadState('userRole', 'student'); // 'student' | 'teacher'
+    const savedUser = loadState('currentUser', null);
+    if (savedUser && typeof savedUser === 'object') {
+      if (savedUser.facultyNo || savedUser.designation) return 'teacher';
+      if (savedUser.rollNo || savedUser.batch) return 'student';
+    }
+    const savedRole = loadState('userRole', 'student');
+    return savedRole === 'teacher' ? 'teacher' : 'student';
   });
-  const [activeMode, setActiveMode] = useState('dashboard'); // dashboard, workstore, chitchat, socialfreak, botmarket, profile
+  const [activeMode, setActiveMode] = useState(() => {
+    return loadState('activeMode', 'dashboard');
+  }); // dashboard, workstore, chitchat, socialfreak, botmarket, profile
   const [workstoreTargetTab, setWorkstoreTargetTab] = useState(null);
 
   // URL query parameter listener for direct meeting link (/ ?meeting=EDU-303-ZOOM)
@@ -174,7 +184,12 @@ export function CollegeProvider({ children }) {
 
   const logout = () => {
     setCurrentUser(null);
-    localStorage.removeItem('indira_ums_currentUser');
+    try {
+      localStorage.removeItem('indira_ums_currentUser');
+      localStorage.setItem('indira_ums_activeMode', JSON.stringify('dashboard'));
+    } catch (e) {
+      console.warn('Logout storage clearance error', e);
+    }
   };
 
   // Dynamic Lecture Time Simulation with Indian Standard Time (IST - Asia/Kolkata)
@@ -293,42 +308,108 @@ export function CollegeProvider({ children }) {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
   useEffect(() => {
-    localStorage.setItem('indira_ums_currentUser', JSON.stringify(currentUser));
-    localStorage.setItem('indira_ums_userRole', JSON.stringify(userRole));
+    try {
+      if (currentUser) {
+        localStorage.setItem('indira_ums_currentUser', JSON.stringify(currentUser));
+        localStorage.setItem('indira_ums_userRole', JSON.stringify(userRole));
+      } else {
+        localStorage.removeItem('indira_ums_currentUser');
+      }
+    } catch (e) {
+      console.warn('Could not persist currentUser session to localStorage', e);
+    }
   }, [currentUser, userRole]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('indira_ums_activeMode', JSON.stringify(activeMode));
+    } catch (e) {
+      console.warn('Could not persist activeMode to localStorage', e);
+    }
+  }, [activeMode]);
+
+  // Synchronize currentUser with master database array (students / teachers)
+  useEffect(() => {
+    if (!currentUser) return;
+    if (userRole === 'teacher') {
+      const match = teachers.find(
+        (t) => t.id === currentUser.id || t.email?.toLowerCase() === currentUser.email?.toLowerCase()
+      );
+      if (match && JSON.stringify(match) !== JSON.stringify(currentUser)) {
+        setCurrentUser(match);
+        try {
+          localStorage.setItem('indira_ums_currentUser', JSON.stringify(match));
+        } catch (e) {}
+      }
+    } else {
+      const match = students.find(
+        (s) => s.id === currentUser.id || s.email?.toLowerCase() === currentUser.email?.toLowerCase()
+      );
+      if (match && JSON.stringify(match) !== JSON.stringify(currentUser)) {
+        setCurrentUser(match);
+        try {
+          localStorage.setItem('indira_ums_currentUser', JSON.stringify(match));
+        } catch (e) {}
+      }
+    }
+  }, [students, teachers, userRole]);
 
   // Auth methods
   const login = (email, password, role) => {
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    const cleanPassword = String(password || '').trim();
+
     if (role === 'student') {
-      const student = students.find((s) => s.email.toLowerCase() === email.toLowerCase());
+      const student = students.find((s) => s.email?.toLowerCase() === cleanEmail);
       if (!student) {
         return { success: false, error: 'Student account not found with this email.' };
       }
-      if (student.password !== password) {
+      if (student.password !== cleanPassword) {
         return { success: false, error: 'Incorrect password entered.' };
       }
       if (student.status === 'PENDING') {
         return {
           success: false,
           isPending: true,
+          student,
           error: 'Your admission registration is currently awaiting teacher approval in the request queue.',
         };
       }
       if (student.status === 'REJECTED') {
         return { success: false, error: 'Your admission request was declined. Please contact faculty.' };
       }
+
+      // Synchronously guarantee session is saved to localStorage immediately
+      try {
+        localStorage.setItem('indira_ums_currentUser', JSON.stringify(student));
+        localStorage.setItem('indira_ums_userRole', JSON.stringify('student'));
+        localStorage.setItem('indira_ums_activeMode', JSON.stringify('dashboard'));
+      } catch (e) {
+        console.warn('Failed to save login session synchronously', e);
+      }
+
       setCurrentUser(student);
       setUserRole('student');
       setActiveMode('dashboard');
       return { success: true, user: student };
     } else {
-      const teacher = teachers.find((t) => t.email.toLowerCase() === email.toLowerCase());
+      const teacher = teachers.find((t) => t.email?.toLowerCase() === cleanEmail);
       if (!teacher) {
         return { success: false, error: 'Faculty account not found with this email.' };
       }
-      if (teacher.password !== password) {
+      if (teacher.password !== cleanPassword) {
         return { success: false, error: 'Incorrect password entered.' };
       }
+
+      // Synchronously guarantee session is saved to localStorage immediately
+      try {
+        localStorage.setItem('indira_ums_currentUser', JSON.stringify(teacher));
+        localStorage.setItem('indira_ums_userRole', JSON.stringify('teacher'));
+        localStorage.setItem('indira_ums_activeMode', JSON.stringify('dashboard'));
+      } catch (e) {
+        console.warn('Failed to save login session synchronously', e);
+      }
+
       setCurrentUser(teacher);
       setUserRole('teacher');
       setActiveMode('dashboard');
@@ -336,9 +417,10 @@ export function CollegeProvider({ children }) {
     }
   };
 
-  const registerStudent = ({ name, rollNo, department, email, password }) => {
+  const registerStudent = ({ name, rollNo, department, email, password, autoApprove = false }) => {
+    const cleanEmail = String(email || '').trim().toLowerCase();
     // Check if email exists
-    if (students.some((s) => s.email.toLowerCase() === email.toLowerCase())) {
+    if (students.some((s) => s.email?.toLowerCase() === cleanEmail)) {
       return { success: false, error: 'A student with this email is already registered.' };
     }
     const rollInt = parseInt(rollNo, 10) || 1;
@@ -348,13 +430,13 @@ export function CollegeProvider({ children }) {
 
     const newStudent = {
       id: `stud-${Date.now()}`,
-      name,
-      rollNo: String(rollNo),
+      name: name.trim(),
+      rollNo: String(rollNo).trim(),
       batch,
       department: department || 'Information Technology (AIML)',
-      email,
-      password,
-      status: 'PENDING', // Awaiting teacher approval!
+      email: cleanEmail,
+      password: String(password || '').trim(),
+      status: autoApprove ? 'APPROVED' : 'PENDING',
       registeredAt: new Date().toISOString(),
       avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`,
       phone: '+91 98000 00000',
@@ -364,12 +446,18 @@ export function CollegeProvider({ children }) {
       classroom: '303',
     };
 
-    setStudents((prev) => [newStudent, ...prev]);
+    const nextStudents = [newStudent, ...students];
+    setStudents(nextStudents);
+    try {
+      localStorage.setItem('indira_ums_students', JSON.stringify(nextStudents));
+    } catch (e) {}
 
     // Sync to Firestore database
     if (isRealFirebaseConfigured) {
       setFirestoreDoc('users', newStudent.id, newStudent);
-      setFirestoreDoc('requests', newStudent.id, newStudent);
+      if (!autoApprove) {
+        setFirestoreDoc('requests', newStudent.id, newStudent);
+      }
     }
 
     // Send high priority notification to teacher portal
@@ -377,34 +465,56 @@ export function CollegeProvider({ children }) {
       id: `notif-${Date.now()}`,
       title: 'New Student Admission Request',
       category: 'request',
-      message: `${name} (Roll No: ${rollNo}, Batch ${batch}) submitted registration request. Action required in Request Panel.`,
+      message: `${name} (Roll No: ${rollNo}, Batch ${batch}) submitted registration request. ${autoApprove ? 'Auto-approved.' : 'Action required in Request Panel.'}`,
       timestamp: 'Just now',
       readBy: [],
     };
     setNotifications((prev) => [notif, ...prev]);
 
+    if (autoApprove) {
+      try {
+        localStorage.setItem('indira_ums_currentUser', JSON.stringify(newStudent));
+        localStorage.setItem('indira_ums_userRole', JSON.stringify('student'));
+        localStorage.setItem('indira_ums_activeMode', JSON.stringify('dashboard'));
+      } catch (e) {}
+      setCurrentUser(newStudent);
+      setUserRole('student');
+      setActiveMode('dashboard');
+    }
+
     return { success: true, student: newStudent };
   };
 
   const registerTeacher = ({ name, facultyNo, department, email, password, designation }) => {
-    if (teachers.some((t) => t.email.toLowerCase() === email.toLowerCase())) {
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    if (teachers.some((t) => t.email?.toLowerCase() === cleanEmail)) {
       return { success: false, error: 'A faculty member with this email already exists.' };
     }
 
+    const cleanName = name.startsWith('Prof.') || name.startsWith('Dr.') ? name.trim() : `Prof. ${name.trim()}`;
     const newTeacher = {
       id: `teach-${Date.now()}`,
-      name: name.startsWith('Prof.') || name.startsWith('Dr.') ? name : `Prof. ${name}`,
-      facultyNo: facultyNo || `FAC-${Math.floor(100 + Math.random() * 900)}`,
+      name: cleanName,
+      facultyNo: facultyNo?.trim() || `FAC-${Math.floor(100 + Math.random() * 900)}`,
       department: department || 'Information Technology',
-      email,
-      password,
+      email: cleanEmail,
+      password: String(password || '').trim(),
       designation: designation || 'Assistant Professor',
       subjects: ['Information Technology'],
       cabin: 'Faculty Block, Room 303',
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`,
+      phone: '+91 98201 44521',
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanName)}`,
     };
 
-    setTeachers((prev) => [newTeacher, ...prev]);
+    const nextTeachers = [newTeacher, ...teachers];
+    setTeachers(nextTeachers);
+    try {
+      localStorage.setItem('indira_ums_teachers', JSON.stringify(nextTeachers));
+      localStorage.setItem('indira_ums_currentUser', JSON.stringify(newTeacher));
+      localStorage.setItem('indira_ums_userRole', JSON.stringify('teacher'));
+      localStorage.setItem('indira_ums_activeMode', JSON.stringify('dashboard'));
+    } catch (e) {}
+
     setCurrentUser(newTeacher);
     setUserRole('teacher');
     setActiveMode('dashboard');
@@ -417,9 +527,11 @@ export function CollegeProvider({ children }) {
   };
 
   const approveStudent = (studentId) => {
-    setStudents((prev) =>
-      prev.map((s) => (s.id === studentId ? { ...s, status: 'APPROVED' } : s))
-    );
+    const nextStudents = students.map((s) => (s.id === studentId ? { ...s, status: 'APPROVED' } : s));
+    setStudents(nextStudents);
+    try {
+      localStorage.setItem('indira_ums_students', JSON.stringify(nextStudents));
+    } catch (e) {}
 
     if (isRealFirebaseConfigured) {
       setFirestoreDoc('users', studentId, { status: 'APPROVED' });
@@ -440,6 +552,36 @@ export function CollegeProvider({ children }) {
         ...prev,
       ]);
     }
+  };
+
+  const instantApproveAndLoginStudent = (studentId) => {
+    let studentToLogin = null;
+    const nextStudents = students.map((s) => {
+      if (s.id === studentId || s.email?.toLowerCase() === String(studentId).toLowerCase()) {
+        const approved = { ...s, status: 'APPROVED' };
+        studentToLogin = approved;
+        return approved;
+      }
+      return s;
+    });
+
+    setStudents(nextStudents);
+    try {
+      localStorage.setItem('indira_ums_students', JSON.stringify(nextStudents));
+    } catch (e) {}
+
+    if (studentToLogin) {
+      try {
+        localStorage.setItem('indira_ums_currentUser', JSON.stringify(studentToLogin));
+        localStorage.setItem('indira_ums_userRole', JSON.stringify('student'));
+        localStorage.setItem('indira_ums_activeMode', JSON.stringify('dashboard'));
+      } catch (e) {}
+      setCurrentUser(studentToLogin);
+      setUserRole('student');
+      setActiveMode('dashboard');
+      return { success: true, student: studentToLogin };
+    }
+    return { success: false, error: 'Student not found.' };
   };
 
   const rejectStudent = (studentId) => {
@@ -2020,6 +2162,7 @@ export function CollegeProvider({ children }) {
         registerTeacher,
         approveStudent,
         rejectStudent,
+        instantApproveAndLoginStudent,
 
         // Data collections
         students,
