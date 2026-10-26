@@ -25,6 +25,7 @@ import {
   registerStudentFirebase,
   registerTeacherFirebase,
   loginFirebase,
+  recordUserInFirebase,
 } from '../firebase/firestoreService';
 import { isRealFirebaseConfigured } from '../firebase/firebaseConfig';
 
@@ -152,6 +153,8 @@ export function CollegeProvider({ children }) {
 
   // Current session (null if not logged in, requiring login page)
   const [currentUser, setCurrentUser] = useState(() => {
+    const stayLoggedIn = loadState('stay_logged_in', true);
+    if (!stayLoggedIn) return null;
     const saved = loadState('currentUser', null);
     if (!saved || typeof saved !== 'object') return null;
     return saved;
@@ -186,6 +189,7 @@ export function CollegeProvider({ children }) {
     setCurrentUser(null);
     try {
       localStorage.removeItem('indira_ums_currentUser');
+      localStorage.removeItem('indira_ums_stay_logged_in');
       localStorage.setItem('indira_ums_activeMode', JSON.stringify('dashboard'));
     } catch (e) {
       console.warn('Logout storage clearance error', e);
@@ -355,7 +359,7 @@ export function CollegeProvider({ children }) {
   }, [students, teachers, userRole]);
 
   // Auth methods
-  const login = (email, password, role) => {
+  const login = (email, password, role, stayLoggedIn = true) => {
     const cleanEmail = String(email || '').trim().toLowerCase();
     const cleanPassword = String(password || '').trim();
 
@@ -379,13 +383,34 @@ export function CollegeProvider({ children }) {
         return { success: false, error: 'Your admission request was declined. Please contact faculty.' };
       }
 
-      // Synchronously guarantee session is saved to localStorage immediately
+      // Record student email in Firebase Console (Authentication and Firestore)
+      if (isRealFirebaseConfigured) {
+        recordUserInFirebase({
+          email: cleanEmail,
+          password: cleanPassword,
+          role: 'student',
+          name: student.name,
+          extraData: {
+            rollNo: student.rollNo,
+            batch: student.batch,
+            department: student.department,
+            status: student.status,
+          },
+        }).catch((err) => console.warn('Firebase student login record notice:', err));
+      }
+
+      // Save or clear persistent session based on user choice ("Don't log out / Stay logged in")
       try {
-        localStorage.setItem('indira_ums_currentUser', JSON.stringify(student));
-        localStorage.setItem('indira_ums_userRole', JSON.stringify('student'));
-        localStorage.setItem('indira_ums_activeMode', JSON.stringify('dashboard'));
+        localStorage.setItem('indira_ums_stay_logged_in', JSON.stringify(Boolean(stayLoggedIn)));
+        if (stayLoggedIn) {
+          localStorage.setItem('indira_ums_currentUser', JSON.stringify(student));
+          localStorage.setItem('indira_ums_userRole', JSON.stringify('student'));
+          localStorage.setItem('indira_ums_activeMode', JSON.stringify('dashboard'));
+        } else {
+          localStorage.removeItem('indira_ums_currentUser');
+        }
       } catch (e) {
-        console.warn('Failed to save login session synchronously', e);
+        console.warn('Storage error on student login', e);
       }
 
       setCurrentUser(student);
@@ -401,13 +426,33 @@ export function CollegeProvider({ children }) {
         return { success: false, error: 'Incorrect password entered.' };
       }
 
-      // Synchronously guarantee session is saved to localStorage immediately
+      // Record faculty email in Firebase Console (Authentication and Firestore)
+      if (isRealFirebaseConfigured) {
+        recordUserInFirebase({
+          email: cleanEmail,
+          password: cleanPassword,
+          role: 'teacher',
+          name: teacher.name,
+          extraData: {
+            facultyNo: teacher.facultyNo,
+            department: teacher.department,
+            designation: teacher.designation,
+          },
+        }).catch((err) => console.warn('Firebase teacher login record notice:', err));
+      }
+
+      // Save or clear persistent session based on user choice ("Don't log out / Stay logged in")
       try {
-        localStorage.setItem('indira_ums_currentUser', JSON.stringify(teacher));
-        localStorage.setItem('indira_ums_userRole', JSON.stringify('teacher'));
-        localStorage.setItem('indira_ums_activeMode', JSON.stringify('dashboard'));
+        localStorage.setItem('indira_ums_stay_logged_in', JSON.stringify(Boolean(stayLoggedIn)));
+        if (stayLoggedIn) {
+          localStorage.setItem('indira_ums_currentUser', JSON.stringify(teacher));
+          localStorage.setItem('indira_ums_userRole', JSON.stringify('teacher'));
+          localStorage.setItem('indira_ums_activeMode', JSON.stringify('dashboard'));
+        } else {
+          localStorage.removeItem('indira_ums_currentUser');
+        }
       } catch (e) {
-        console.warn('Failed to save login session synchronously', e);
+        console.warn('Storage error on teacher login', e);
       }
 
       setCurrentUser(teacher);
@@ -417,7 +462,7 @@ export function CollegeProvider({ children }) {
     }
   };
 
-  const registerStudent = ({ name, rollNo, department, email, password, autoApprove = false }) => {
+  const registerStudent = ({ name, rollNo, department, email, password, autoApprove = false, stayLoggedIn = true }) => {
     const cleanEmail = String(email || '').trim().toLowerCase();
     // Check if email exists
     if (students.some((s) => s.email?.toLowerCase() === cleanEmail)) {
@@ -452,8 +497,16 @@ export function CollegeProvider({ children }) {
       localStorage.setItem('indira_ums_students', JSON.stringify(nextStudents));
     } catch (e) {}
 
-    // Sync to Firestore database
+    // Record in Firebase Authentication and Firestore Console
     if (isRealFirebaseConfigured) {
+      recordUserInFirebase({
+        email: cleanEmail,
+        password: String(password || '').trim(),
+        role: 'student',
+        name,
+        extraData: newStudent,
+      }).catch((e) => console.warn('Firebase student registration notice:', e));
+
       setFirestoreDoc('users', newStudent.id, newStudent);
       if (!autoApprove) {
         setFirestoreDoc('requests', newStudent.id, newStudent);
@@ -473,9 +526,12 @@ export function CollegeProvider({ children }) {
 
     if (autoApprove) {
       try {
-        localStorage.setItem('indira_ums_currentUser', JSON.stringify(newStudent));
-        localStorage.setItem('indira_ums_userRole', JSON.stringify('student'));
-        localStorage.setItem('indira_ums_activeMode', JSON.stringify('dashboard'));
+        localStorage.setItem('indira_ums_stay_logged_in', JSON.stringify(Boolean(stayLoggedIn)));
+        if (stayLoggedIn) {
+          localStorage.setItem('indira_ums_currentUser', JSON.stringify(newStudent));
+          localStorage.setItem('indira_ums_userRole', JSON.stringify('student'));
+          localStorage.setItem('indira_ums_activeMode', JSON.stringify('dashboard'));
+        }
       } catch (e) {}
       setCurrentUser(newStudent);
       setUserRole('student');
@@ -485,7 +541,7 @@ export function CollegeProvider({ children }) {
     return { success: true, student: newStudent };
   };
 
-  const registerTeacher = ({ name, facultyNo, department, email, password, designation }) => {
+  const registerTeacher = ({ name, facultyNo, department, email, password, designation, stayLoggedIn = true }) => {
     const cleanEmail = String(email || '').trim().toLowerCase();
     if (teachers.some((t) => t.email?.toLowerCase() === cleanEmail)) {
       return { success: false, error: 'A faculty member with this email already exists.' };
@@ -508,20 +564,33 @@ export function CollegeProvider({ children }) {
 
     const nextTeachers = [newTeacher, ...teachers];
     setTeachers(nextTeachers);
+
+    // Record in Firebase Authentication and Firestore Console
+    if (isRealFirebaseConfigured) {
+      recordUserInFirebase({
+        email: cleanEmail,
+        password: String(password || '').trim(),
+        role: 'teacher',
+        name: cleanName,
+        extraData: newTeacher,
+      }).catch((e) => console.warn('Firebase faculty registration notice:', e));
+
+      setFirestoreDoc('users', newTeacher.id, newTeacher);
+    }
+
     try {
       localStorage.setItem('indira_ums_teachers', JSON.stringify(nextTeachers));
-      localStorage.setItem('indira_ums_currentUser', JSON.stringify(newTeacher));
-      localStorage.setItem('indira_ums_userRole', JSON.stringify('teacher'));
-      localStorage.setItem('indira_ums_activeMode', JSON.stringify('dashboard'));
+      localStorage.setItem('indira_ums_stay_logged_in', JSON.stringify(Boolean(stayLoggedIn)));
+      if (stayLoggedIn) {
+        localStorage.setItem('indira_ums_currentUser', JSON.stringify(newTeacher));
+        localStorage.setItem('indira_ums_userRole', JSON.stringify('teacher'));
+        localStorage.setItem('indira_ums_activeMode', JSON.stringify('dashboard'));
+      }
     } catch (e) {}
 
     setCurrentUser(newTeacher);
     setUserRole('teacher');
     setActiveMode('dashboard');
-
-    if (isRealFirebaseConfigured) {
-      setFirestoreDoc('users', newTeacher.id, newTeacher);
-    }
 
     return { success: true, teacher: newTeacher };
   };

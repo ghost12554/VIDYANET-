@@ -193,3 +193,77 @@ export async function loginFirebase(email, password, role) {
     return { success: false, error: err.message };
   }
 }
+
+// Ensure user email is reliably recorded in Firebase Auth and Firestore Console
+export async function recordUserInFirebase({ email, password, role, name, extraData = {} }) {
+  try {
+    if (!auth && !db) return { success: false, error: 'Firebase not configured' };
+
+    let uid = null;
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    const cleanPassword = String(password || '').trim();
+
+    // 1. Record user in Firebase Authentication (Users table in Firebase Console)
+    if (auth && cleanEmail && cleanPassword) {
+      try {
+        const cred = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+        uid = cred.user.uid;
+      } catch (authErr) {
+        // If not found in Auth, create user so their email appears in Firebase Authentication console!
+        if (
+          authErr.code === 'auth/user-not-found' ||
+          authErr.code === 'auth/invalid-credential' ||
+          authErr.code === 'auth/invalid-login-credentials' ||
+          authErr.code === 'auth/wrong-password'
+        ) {
+          try {
+            const newCred = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+            uid = newCred.user.uid;
+          } catch (createErr) {
+            console.warn('Firebase Auth user creation notice:', createErr.message);
+          }
+        } else if (authErr.code === 'auth/email-already-in-use') {
+          // Email already exists in Auth
+        } else {
+          console.warn('Firebase Auth notice:', authErr.message);
+        }
+      }
+    }
+
+    // 2. Write to Firestore Database 'users' and 'logins' collections
+    if (db && cleanEmail) {
+      const docId = uid || cleanEmail.replace(/[^a-z0-9]/g, '_');
+      const userDocRef = doc(db, 'users', docId);
+      await setDoc(
+        userDocRef,
+        {
+          email: cleanEmail,
+          role,
+          name: name || cleanEmail.split('@')[0],
+          lastLoginAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          ...extraData,
+        },
+        { merge: true }
+      );
+
+      // Also record in 'logins' collection for real-time audit logs in Firebase Console
+      try {
+        const loginsCol = collection(db, 'logins');
+        await addDoc(loginsCol, {
+          email: cleanEmail,
+          role,
+          name: name || cleanEmail.split('@')[0],
+          timestamp: new Date().toISOString(),
+        });
+      } catch (e) {
+        console.warn('Could not add login event to Firestore', e);
+      }
+    }
+
+    return { success: true, uid };
+  } catch (err) {
+    console.warn('recordUserInFirebase error:', err);
+    return { success: false, error: err.message };
+  }
+}
