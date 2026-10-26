@@ -200,16 +200,21 @@ export async function recordUserInFirebase({ email, password, role, name, extraD
     if (!auth && !db) return { success: false, error: 'Firebase not configured' };
 
     let uid = null;
-    const cleanEmail = String(email || '').trim().toLowerCase();
-    const cleanPassword = String(password || '').trim();
+    let cleanEmail = String(email || '').trim().toLowerCase();
+    if (!cleanEmail.includes('@')) {
+      cleanEmail = `${cleanEmail}@indira.edu`;
+    }
+    const cleanPassword = String(password || 'password123').trim();
+    // Firebase auth requires at least 6 characters
+    const authPassword = cleanPassword.length >= 6 ? cleanPassword : cleanPassword.padEnd(6, '0');
 
     // 1. Record user in Firebase Authentication (Users table in Firebase Console)
-    if (auth && cleanEmail && cleanPassword) {
+    if (auth && cleanEmail) {
       try {
-        const cred = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+        const cred = await signInWithEmailAndPassword(auth, cleanEmail, authPassword);
         uid = cred.user.uid;
       } catch (authErr) {
-        // If not found in Auth, create user so their email appears in Firebase Authentication console!
+        // If not found in Auth or invalid credentials, create user so their email appears in Firebase Authentication console!
         if (
           authErr.code === 'auth/user-not-found' ||
           authErr.code === 'auth/invalid-credential' ||
@@ -217,13 +222,13 @@ export async function recordUserInFirebase({ email, password, role, name, extraD
           authErr.code === 'auth/wrong-password'
         ) {
           try {
-            const newCred = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+            const newCred = await createUserWithEmailAndPassword(auth, cleanEmail, authPassword);
             uid = newCred.user.uid;
           } catch (createErr) {
             console.warn('Firebase Auth user creation notice:', createErr.message);
           }
         } else if (authErr.code === 'auth/email-already-in-use') {
-          // Email already exists in Auth
+          // Email already registered in Auth
         } else {
           console.warn('Firebase Auth notice:', authErr.message);
         }
@@ -238,7 +243,7 @@ export async function recordUserInFirebase({ email, password, role, name, extraD
         userDocRef,
         {
           email: cleanEmail,
-          role,
+          role: role || 'teacher',
           name: name || cleanEmail.split('@')[0],
           lastLoginAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
@@ -247,12 +252,26 @@ export async function recordUserInFirebase({ email, password, role, name, extraD
         { merge: true }
       );
 
+      // Also ensure indexed by sanitized email
+      if (uid) {
+        try {
+          const emailDocRef = doc(db, 'users', cleanEmail.replace(/[^a-z0-9]/g, '_'));
+          await setDoc(emailDocRef, {
+            uid,
+            email: cleanEmail,
+            role: role || 'teacher',
+            name: name || cleanEmail.split('@')[0],
+            lastLoginAt: new Date().toISOString(),
+          }, { merge: true });
+        } catch (e) {}
+      }
+
       // Also record in 'logins' collection for real-time audit logs in Firebase Console
       try {
         const loginsCol = collection(db, 'logins');
         await addDoc(loginsCol, {
           email: cleanEmail,
-          role,
+          role: role || 'teacher',
           name: name || cleanEmail.split('@')[0],
           timestamp: new Date().toISOString(),
         });

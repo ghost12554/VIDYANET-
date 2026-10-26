@@ -358,6 +358,25 @@ export function CollegeProvider({ children }) {
     }
   }, [students, teachers, userRole]);
 
+  // Whenever currentUser is active, ensure their email is recorded in Firebase Console
+  useEffect(() => {
+    if (currentUser?.email && isRealFirebaseConfigured) {
+      recordUserInFirebase({
+        email: currentUser.email,
+        password: currentUser.password || 'password123',
+        role: userRole || (currentUser.facultyNo ? 'teacher' : 'student'),
+        name: currentUser.name,
+        extraData: {
+          id: currentUser.id,
+          rollNo: currentUser.rollNo || null,
+          facultyNo: currentUser.facultyNo || null,
+          department: currentUser.department || 'Information Technology',
+          status: currentUser.status || 'APPROVED',
+        },
+      }).catch((e) => console.warn('Active user Firebase sync notice:', e));
+    }
+  }, [currentUser?.email]);
+
   // Auth methods
   const login = (email, password, role, stayLoggedIn = true) => {
     const cleanEmail = String(email || '').trim().toLowerCase();
