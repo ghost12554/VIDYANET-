@@ -26,6 +26,7 @@ import {
   Code,
   Presentation,
   CheckCircle,
+  CheckCircle2,
   Trash2,
   Calendar,
   Check,
