@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useCollege } from '../../context/CollegeContext';
+import { useGoogleDialog } from '../common/GoogleDialog';
 import {
   FileText,
   Upload,
@@ -37,6 +38,11 @@ import {
   Copy,
   Link,
   Share2,
+  LayoutGrid,
+  Maximize2,
+  Smile,
+  VolumeX,
+  PhoneOff,
 } from 'lucide-react';
 import {
   readFileAsAttachment,
@@ -67,8 +73,14 @@ export default function StudentWorkstore() {
     cancelJoinRequest,
     leaveMeeting,
     toggleStudentHandRaise,
+    updateParticipantMeetingState,
+    updateHostMeetingState,
+    setMeetingScreenSharer,
+    sendMeetingReaction,
     sendMeetingMessage,
   } = useCollege();
+
+  const { showToast, showModal } = useGoogleDialog();
 
   const [activeTab, setActiveTab] = useState(() => {
     if (workstoreTargetTab) return workstoreTargetTab;
@@ -154,18 +166,22 @@ export default function StudentWorkstore() {
   const [isVideoOn, setIsVideoOn] = useState(false);
   const [studentCameraStream, setStudentCameraStream] = useState(null);
   const [isHandRaised, setIsHandRaised] = useState(false);
-  const [meetingChat, setMeetingChat] = useState([
-    { sender: 'Prof. Divya C', message: 'Welcome students, starting Chapter 4 slides now.' },
-    { sender: 'Aarav Sharma', message: 'Good morning Ma\'am! Screen is visible.' },
-  ]);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [screenStream, setScreenStream] = useState(null);
+  const [meetingViewMode, setMeetingViewMode] = useState('speaker'); // 'speaker' | 'gallery'
+  const [showReactionsMenu, setShowReactionsMenu] = useState(false);
+  const [meetingSideTab, setMeetingSideTab] = useState('chat'); // 'chat' | 'participants'
+  const [meetingChat, setMeetingChat] = useState([]);
   const [newMeetingMsg, setNewMeetingMsg] = useState('');
   const studentVideoRef = useRef(null);
+  const studentScreenVideoRef = useRef(null);
 
   const toggleStudentCamera = async () => {
     if (isVideoOn && studentCameraStream) {
       studentCameraStream.getTracks().forEach((t) => t.stop());
       setStudentCameraStream(null);
       setIsVideoOn(false);
+      updateParticipantMeetingState?.(currentUser?.id, { isVideoOn: false });
     } else {
       try {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -177,12 +193,14 @@ export default function StudentWorkstore() {
         });
         setStudentCameraStream(stream);
         setIsVideoOn(true);
+        updateParticipantMeetingState?.(currentUser?.id, { isVideoOn: true });
         if (studentVideoRef.current) {
           studentVideoRef.current.srcObject = stream;
         }
       } catch (e) {
         console.warn('Student camera fallback', e);
         setIsVideoOn(!isVideoOn);
+        updateParticipantMeetingState?.(currentUser?.id, { isVideoOn: !isVideoOn });
       }
     }
   };
@@ -195,6 +213,69 @@ export default function StudentWorkstore() {
         t.enabled = next;
       });
     }
+    updateParticipantMeetingState?.(currentUser?.id, { isMuted: !next });
+  };
+
+  const toggleStudentScreenShare = async () => {
+    if (isScreenSharing && screenStream) {
+      screenStream.getTracks().forEach((t) => t.stop());
+      setScreenStream(null);
+      setIsScreenSharing(false);
+      setMeetingScreenSharer?.(null);
+      updateParticipantMeetingState?.(currentUser?.id, { isScreenSharing: false });
+    } else {
+      if (activeMeeting?.allowStudentScreenShare === false) {
+        showToast?.({
+          type: 'warning',
+          title: 'Screen Sharing Restricted',
+          message: 'The faculty host has currently restricted screen sharing permissions.',
+        }) || alert('The faculty host has restricted screen sharing permissions.');
+        return;
+      }
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+          showToast?.({
+            type: 'error',
+            title: 'Not Supported',
+            message: 'Screen sharing is not supported by your browser.',
+          }) || alert('Screen sharing is not supported by your browser.');
+          return;
+        }
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        setScreenStream(stream);
+        setIsScreenSharing(true);
+        const sharer = {
+          id: currentUser?.id,
+          name: currentUser?.name || 'Student',
+          role: 'student',
+          label: `${currentUser?.name || 'Student'}'s Screen`,
+        };
+        setMeetingScreenSharer?.(sharer);
+        updateParticipantMeetingState?.(currentUser?.id, { isScreenSharing: true });
+
+        if (studentScreenVideoRef.current) {
+          studentScreenVideoRef.current.srcObject = stream;
+        }
+
+        stream.getVideoTracks()[0].onended = () => {
+          setScreenStream(null);
+          setIsScreenSharing(false);
+          setMeetingScreenSharer?.(null);
+          updateParticipantMeetingState?.(currentUser?.id, { isScreenSharing: false });
+        };
+      } catch (err) {
+        console.warn('Student screen share canceled or failed', err);
+      }
+    }
+  };
+
+  const handleSendReaction = (emoji) => {
+    sendMeetingReaction?.({
+      senderId: currentUser?.id,
+      senderName: currentUser?.name || 'Student',
+      emoji,
+    });
+    setShowReactionsMenu(false);
   };
 
   useEffect(() => {
@@ -204,10 +285,26 @@ export default function StudentWorkstore() {
   }, [studentCameraStream, isVideoOn]);
 
   useEffect(() => {
-    if (activeTab !== 'meeting' && studentCameraStream) {
-      studentCameraStream.getTracks().forEach((t) => t.stop());
-      setStudentCameraStream(null);
-      setIsVideoOn(false);
+    if (studentScreenVideoRef.current && screenStream) {
+      studentScreenVideoRef.current.srcObject = screenStream;
+    }
+  }, [screenStream, isScreenSharing]);
+
+  useEffect(() => {
+    if (activeTab !== 'meeting') {
+      if (studentCameraStream) {
+        studentCameraStream.getTracks().forEach((t) => t.stop());
+        setStudentCameraStream(null);
+        setIsVideoOn(false);
+        updateParticipantMeetingState?.(currentUser?.id, { isVideoOn: false });
+      }
+      if (screenStream) {
+        screenStream.getTracks().forEach((t) => t.stop());
+        setScreenStream(null);
+        setIsScreenSharing(false);
+        setMeetingScreenSharer?.(null);
+        updateParticipantMeetingState?.(currentUser?.id, { isScreenSharing: false });
+      }
     }
   }, [activeTab]);
 
@@ -1986,117 +2083,397 @@ export default function StudentWorkstore() {
         }
 
         // Case 4: Student is ADMITTED into the Zoom Meeting
+        const liveAdmittedCount = activeMeeting?.admittedParticipants?.length || 1;
+        const liveChatMessages = (activeMeeting?.messages?.length > 0)
+          ? activeMeeting.messages
+          : meetingChat;
+        const hostName = activeMeeting?.hostName || 'Faculty Host';
+        const hostInitials = hostName
+          .replace(/^(Prof\.|Dr\.|Mr\.|Ms\.|Mrs\.)\s+/i, '')
+          .trim()
+          .split(/\s+/)
+          .map((p) => p[0])
+          .join('')
+          .substring(0, 2)
+          .toUpperCase() || 'TH';
+        const isAnyoneSharing = Boolean(activeMeeting?.screenSharer || isScreenSharing);
+        const screenSharerName = activeMeeting?.screenSharer?.name || (isScreenSharing ? (currentUser?.name || 'You') : hostName);
+        const admittedList = activeMeeting?.admittedParticipants || [];
+
         return (
-          <div className="bg-slate-900/90 rounded-3xl p-4 sm:p-6 border border-slate-800 shadow-xl space-y-4 animate-fadeIn">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <span className="flex h-3 w-3 rounded-full bg-rose-500 animate-ping"></span>
-                <h3 className="text-base font-bold text-white">
-                  {activeMeeting?.title || 'Classroom 303 Online Video Lecture'}
-                </h3>
-              </div>
-              <div className="flex items-center gap-2 text-xs">
-                <span className="px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30">
-                  Host: {activeMeeting?.hostName || 'Prof. Divya C'}
+          <div className="bg-slate-900/90 rounded-3xl p-3 sm:p-5 border border-slate-800 shadow-2xl space-y-4 animate-fadeIn">
+            {/* Zoom Meeting Top Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-3">
+              <div className="flex items-center gap-3">
+                <span className="relative flex h-3.5 w-3.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-rose-500"></span>
                 </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-bold text-white tracking-wide">
+                      {activeMeeting?.title || 'Classroom 303 • Live Virtual Lecture Studio'}
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-mono text-[10px] font-bold border border-rose-500/30">
+                      REC LIVE
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Host: <span className="text-indigo-400 font-semibold">{hostName}</span> • Interactive Zoom Classroom
+                  </p>
+                </div>
+              </div>
+
+              {/* View Switcher & Leave Action */}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+                  <button
+                    onClick={() => setMeetingViewMode('speaker')}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 ${
+                      meetingViewMode === 'speaker'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                    title="Speaker View"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5" />
+                    <span className="hidden md:inline">Speaker</span>
+                  </button>
+                  <button
+                    onClick={() => setMeetingViewMode('gallery')}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 ${
+                      meetingViewMode === 'gallery'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                    title="Gallery Grid View"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span className="hidden md:inline">Gallery</span>
+                  </button>
+                </div>
+
                 <button
                   onClick={() => {
-                    if (window.confirm('Leave this meeting?')) {
+                    const confirmed = window.confirm('Are you sure you want to leave this live meeting?');
+                    if (confirmed) {
+                      if (studentCameraStream) {
+                        studentCameraStream.getTracks().forEach((t) => t.stop());
+                      }
+                      if (screenStream) {
+                        screenStream.getTracks().forEach((t) => t.stop());
+                      }
                       leaveMeeting(currentUser?.id);
                     }
                   }}
-                  className="px-2.5 py-1 rounded-lg bg-rose-600/30 hover:bg-rose-600 text-rose-300 hover:text-white font-semibold transition text-[11px]"
+                  className="px-3 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white font-semibold transition text-xs flex items-center gap-1.5 border border-rose-500/30"
                 >
-                  Leave
+                  <PhoneOff className="w-3.5 h-3.5" />
+                  <span>Leave</span>
                 </button>
               </div>
             </div>
 
-            {/* Meeting Grid */}
+            {/* Stage & Side Panel Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-              {/* Main Stage Video Screen */}
-              <div className="lg:col-span-3 bg-slate-950 rounded-2xl border border-slate-800 relative aspect-video flex flex-col justify-between p-4 overflow-hidden">
-                <div className="flex items-center justify-between text-xs z-10">
-                  <span className="px-2.5 py-1 rounded-lg bg-slate-900/80 text-white font-semibold backdrop-blur-md">
-                    Prof. Divya C (Presenting Screen: AVL Tree Rotations.pdf)
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-rose-600/80 text-white text-[10px] font-bold uppercase tracking-wider">
-                    REC LIVE
-                  </span>
-                </div>
-
-                {/* Simulation visual of presentation */}
-                <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-400">
-                  <div className="w-20 h-20 rounded-full bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-300 mb-3">
-                    <Monitor className="w-10 h-10" />
-                  </div>
-                  <h4 className="text-white font-bold text-base">
-                    Live Classroom Screen Sharing
-                  </h4>
-                  <p className="text-xs text-slate-400 mt-1 max-w-md">
-                    Subject: Data Structures (AIML Sem-III) • Lecture Slides #14: Balancing LL and RR Rotations.
-                  </p>
-                </div>
-
-                {/* Student's Own Video Preview (PiP) when Webcam is On */}
-                {isVideoOn && (
-                  <div className="absolute bottom-20 right-4 z-20 w-36 sm:w-44 aspect-video rounded-2xl overflow-hidden border-2 border-indigo-500 shadow-2xl bg-slate-900 group">
-                    {studentCameraStream ? (
-                      <video
-                        ref={studentVideoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        className="w-full h-full object-cover transform -scale-x-100"
-                      />
+              {/* Main Stage Canvas */}
+              <div className="lg:col-span-3 bg-slate-950 rounded-2xl border border-slate-800 relative aspect-video flex flex-col justify-between overflow-hidden shadow-2xl">
+                {/* Floating Stage Header Tag */}
+                <div className="absolute top-3 left-3 right-3 flex items-center justify-between text-xs z-20 pointer-events-none">
+                  <span className="px-2.5 py-1 rounded-xl bg-slate-900/90 text-white font-semibold backdrop-blur-md border border-slate-800/80 shadow flex items-center gap-2 pointer-events-auto">
+                    {isAnyoneSharing ? (
+                      <>
+                        <Monitor className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>{screenSharerName} (Presenting Screen)</span>
+                      </>
                     ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-800 text-white">
-                        <span className="text-xs font-bold text-indigo-300">
-                          {currentUser?.name ? currentUser.name.split(' ')[0] : 'You'}
-                        </span>
-                        <span className="text-[10px] text-slate-400">Camera Active</span>
-                      </div>
+                      <>
+                        <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>{hostName} (Host Studio)</span>
+                      </>
                     )}
-                    <div className="absolute bottom-1.5 left-2 bg-black/80 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] text-white font-medium flex items-center gap-1">
-                      <span>You</span>
-                      {isMicOn ? (
-                        <Mic className="w-2.5 h-2.5 text-emerald-400" />
+                  </span>
+
+                  <span className="px-2.5 py-1 rounded-xl bg-slate-900/90 text-slate-300 font-mono text-[11px] backdrop-blur-md border border-slate-800/80 flex items-center gap-1.5 pointer-events-auto">
+                    <Users className="w-3 h-3 text-indigo-400" />
+                    {liveAdmittedCount} Online
+                  </span>
+                </div>
+
+                {/* Stage Canvas Content */}
+                <div className="w-full h-full flex items-center justify-center relative overflow-hidden bg-slate-950">
+                  {/* Mode A: Screen Sharing Mode */}
+                  {isAnyoneSharing ? (
+                    <div className="w-full h-full relative flex items-center justify-center bg-black">
+                      {isScreenSharing ? (
+                        <video
+                          ref={studentScreenVideoRef}
+                          autoPlay
+                          playsInline
+                          muted
+                          className="w-full h-full object-contain"
+                        />
                       ) : (
-                        <MicOff className="w-2.5 h-2.5 text-rose-400" />
+                        <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-400">
+                          <div className="w-20 h-20 rounded-full bg-cyan-600/20 border border-cyan-500/40 flex items-center justify-center text-cyan-300 mb-3 shadow-xl animate-pulse">
+                            <Monitor className="w-10 h-10" />
+                          </div>
+                          <h4 className="text-white font-bold text-base">
+                            Live Screen Broadcast
+                          </h4>
+                          <p className="text-xs text-slate-400 mt-1 max-w-md">
+                            Transmitting presentation slides and live lecture demonstration • Full HD 60FPS.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Floating PiP Webcam Thumbnail */}
+                      {isVideoOn && (
+                        <div className="absolute bottom-20 right-4 z-30 w-36 sm:w-44 aspect-video rounded-2xl overflow-hidden border-2 border-indigo-500 shadow-2xl bg-slate-900 group">
+                          {studentCameraStream ? (
+                            <video
+                              ref={studentVideoRef}
+                              autoPlay
+                              playsInline
+                              muted
+                              className="w-full h-full object-cover transform -scale-x-100"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-800 text-white">
+                              <span className="text-xs font-bold text-indigo-300">
+                                {currentUser?.name ? currentUser.name.split(' ')[0] : 'You'}
+                              </span>
+                              <span className="text-[10px] text-slate-400">Camera Active</span>
+                            </div>
+                          )}
+                          <div className="absolute bottom-1.5 left-2 bg-black/80 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] text-white font-medium flex items-center gap-1">
+                            <span>You</span>
+                            {isMicOn ? (
+                              <Mic className="w-2.5 h-2.5 text-emerald-400" />
+                            ) : (
+                              <MicOff className="w-2.5 h-2.5 text-rose-400" />
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
-                  </div>
-                )}
+                  ) : meetingViewMode === 'gallery' ? (
+                    /* Mode B: Gallery View (Zoom Grid) */
+                    <div className={`w-full h-full p-4 pt-12 pb-20 grid gap-3 overflow-y-auto ${
+                      admittedList.length <= 1
+                        ? 'grid-cols-1 sm:grid-cols-2'
+                        : admittedList.length <= 3
+                        ? 'grid-cols-2 sm:grid-cols-2'
+                        : 'grid-cols-2 sm:grid-cols-3'
+                    }`}>
+                      {/* Host Tile */}
+                      <div className="relative rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-xl flex items-center justify-center min-h-[140px] aspect-video">
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-indigo-950/60 p-4 text-center">
+                          <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white text-lg font-bold shadow-lg mb-2 ring-4 ring-indigo-500/20">
+                            {hostInitials}
+                          </div>
+                          <span className="text-xs text-white font-semibold truncate max-w-[140px]">
+                            {hostName}
+                          </span>
+                          <span className="text-[10px] text-indigo-300 font-mono mt-0.5">Faculty Host</span>
+                        </div>
+                        <div className="absolute bottom-2 left-2 bg-slate-950/80 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] text-white font-semibold flex items-center gap-1.5">
+                          <span>{hostName} (Host)</span>
+                          <Mic className="w-3 h-3 text-emerald-400" />
+                        </div>
+                      </div>
 
-                {/* In-Call Meeting Toolbar */}
-                <div className="bg-slate-900/90 backdrop-blur-md p-3 rounded-2xl border border-slate-800 flex items-center justify-center gap-3 z-10">
+                      {/* Current Logged-in Student Tile */}
+                      <div className={`relative rounded-2xl overflow-hidden bg-slate-900 border-2 ${
+                        isMicOn ? 'border-emerald-500 ring-4 ring-emerald-500/20' : 'border-indigo-500/50'
+                      } shadow-xl flex items-center justify-center min-h-[140px] aspect-video`}>
+                        {isVideoOn && studentCameraStream ? (
+                          <video
+                            ref={studentVideoRef}
+                            autoPlay
+                            playsInline
+                            muted
+                            className="w-full h-full object-cover transform -scale-x-100"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-slate-950 p-4 text-center">
+                            <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-indigo-600 to-cyan-600 flex items-center justify-center text-white text-lg font-bold shadow-lg mb-2">
+                              {currentUser?.name ? currentUser.name.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase() : 'ME'}
+                            </div>
+                            <span className="text-xs text-white font-semibold truncate max-w-[140px]">
+                              {currentUser?.name || 'You'}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono mt-0.5">
+                              Roll: {currentUser?.rollNo || 'N/A'}
+                            </span>
+                          </div>
+                        )}
+                        {isHandRaised && (
+                          <div className="absolute top-2 right-2 text-xl animate-bounce" title="Hand Raised">
+                            ✋
+                          </div>
+                        )}
+                        <div className="absolute bottom-2 left-2 bg-slate-950/80 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] text-white font-medium flex items-center gap-1.5">
+                          <span>{currentUser?.name || 'You'} (You)</span>
+                          {isMicOn ? <Mic className="w-3 h-3 text-emerald-400" /> : <MicOff className="w-3 h-3 text-rose-400" />}
+                        </div>
+                      </div>
+
+                      {/* Other Admitted Students Tiles */}
+                      {admittedList
+                        .filter((s) => s.studentId !== currentUser?.id)
+                        .map((stud) => {
+                          const sId = stud.studentId || stud.id;
+                          const sInitials = (stud.studentName || stud.name || 'ST')
+                            .split(' ')
+                            .map((n) => n[0])
+                            .join('')
+                            .substring(0, 2)
+                            .toUpperCase();
+
+                          return (
+                            <div
+                              key={sId}
+                              className={`relative rounded-2xl overflow-hidden bg-slate-900 border ${
+                                !stud.isMuted ? 'border-emerald-500/80 ring-2 ring-emerald-500/20' : 'border-slate-800'
+                              } shadow-xl flex items-center justify-center min-h-[140px] aspect-video`}
+                            >
+                              <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-slate-950 p-4 text-center">
+                                <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-slate-700 to-slate-800 flex items-center justify-center text-white text-lg font-bold shadow-lg mb-2">
+                                  {sInitials}
+                                </div>
+                                <span className="text-xs text-white font-semibold truncate max-w-[140px]">
+                                  {stud.studentName || stud.name}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                  Roll: {stud.rollNo || 'N/A'}
+                                </span>
+                              </div>
+                              {stud.hasHandRaised && (
+                                <div className="absolute top-2 right-2 text-xl animate-bounce" title="Hand Raised">
+                                  ✋
+                                </div>
+                              )}
+                              {stud.reaction && (
+                                <div className="absolute top-2 right-2 text-2xl animate-bounce">
+                                  {stud.reaction}
+                                </div>
+                              )}
+                              <div className="absolute bottom-2 left-2 bg-slate-950/80 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] text-white font-medium flex items-center gap-1.5">
+                                <span className="truncate max-w-[110px]">{stud.studentName || stud.name}</span>
+                                {stud.isMuted ? <MicOff className="w-3 h-3 text-rose-400" /> : <Mic className="w-3 h-3 text-emerald-400" />}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  ) : (
+                    /* Mode C: Speaker View */
+                    <div className="w-full h-full flex flex-col items-center justify-center text-center p-6 bg-gradient-to-b from-slate-900 via-slate-950 to-slate-950">
+                      <div className="relative mb-4">
+                        <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-indigo-600 via-purple-600 to-indigo-800 flex items-center justify-center text-white text-2xl font-extrabold shadow-2xl border-4 border-indigo-500/40 ring-8 ring-indigo-500/10">
+                          {hostInitials}
+                        </div>
+                        <div className="absolute -bottom-1 -right-1 p-2 rounded-full bg-emerald-500 text-white shadow-lg border-2 border-slate-950">
+                          <Mic className="w-4 h-4 animate-pulse" />
+                        </div>
+                      </div>
+                      <h4 className="text-white font-bold text-base">{hostName}</h4>
+                      <p className="text-xs text-slate-400 mt-1 max-w-sm">
+                        Classroom 303 Virtual Lecture • Listening to Faculty Broadcast
+                      </p>
+
+                      {/* Student PiP in Speaker Mode */}
+                      {isVideoOn && (
+                        <div className="absolute bottom-20 right-4 z-30 w-36 sm:w-44 aspect-video rounded-2xl overflow-hidden border-2 border-indigo-500 shadow-2xl bg-slate-900">
+                          {studentCameraStream ? (
+                            <video
+                              ref={studentVideoRef}
+                              autoPlay
+                              playsInline
+                              muted
+                              className="w-full h-full object-cover transform -scale-x-100"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-800 text-white">
+                              <span className="text-xs font-bold text-indigo-300">
+                                {currentUser?.name ? currentUser.name.split(' ')[0] : 'You'}
+                              </span>
+                              <span className="text-[10px] text-slate-400">Camera Active</span>
+                            </div>
+                          )}
+                          <div className="absolute bottom-1.5 left-2 bg-black/80 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] text-white font-medium flex items-center gap-1">
+                            <span>You</span>
+                            {isMicOn ? (
+                              <Mic className="w-2.5 h-2.5 text-emerald-400" />
+                            ) : (
+                              <MicOff className="w-2.5 h-2.5 text-rose-400" />
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Floating Bottom Toolbar Dock (Zoom Style) */}
+                <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 bg-slate-900/95 backdrop-blur-xl px-3 py-2 rounded-2xl border border-slate-800 flex items-center gap-2 z-30 shadow-2xl">
+                  {/* Microphone */}
                   <button
                     onClick={toggleStudentMic}
-                    className={`p-2.5 rounded-xl transition ${
-                      isMicOn ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-rose-400'
+                    className={`p-2.5 rounded-xl transition flex flex-col items-center justify-center ${
+                      isMicOn
+                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                        : 'bg-slate-800 text-rose-400 hover:bg-slate-700'
                     }`}
-                    title={isMicOn ? 'Mute Mic' : 'Unmute Mic'}
+                    title={isMicOn ? 'Mute Microphone' : 'Unmute Microphone'}
                   >
                     {isMicOn ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+                    <span className="text-[9px] font-bold mt-0.5 hidden sm:inline">
+                      {isMicOn ? 'Mute' : 'Unmute'}
+                    </span>
                   </button>
 
+                  {/* Camera / Video */}
                   <button
                     onClick={toggleStudentCamera}
-                    className={`p-2.5 rounded-xl transition ${
-                      isVideoOn ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-rose-400'
+                    className={`p-2.5 rounded-xl transition flex flex-col items-center justify-center ${
+                      isVideoOn
+                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                        : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'
                     }`}
-                    title={isVideoOn ? 'Turn Video Off' : 'Turn Video On (Webcam)'}
+                    title={isVideoOn ? 'Stop Camera' : 'Start Camera (Show Face)'}
                   >
-                    {isVideoOn ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
+                    {isVideoOn ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4 text-rose-400" />}
+                    <span className="text-[9px] font-bold mt-0.5 hidden sm:inline">
+                      {isVideoOn ? 'Stop Video' : 'Start Video'}
+                    </span>
                   </button>
 
+                  {/* Share Screen */}
+                  <button
+                    onClick={toggleStudentScreenShare}
+                    className={`p-2.5 rounded-xl transition flex flex-col items-center justify-center ${
+                      isScreenSharing
+                        ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/30'
+                        : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'
+                    }`}
+                    title={isScreenSharing ? 'Stop Screen Share' : 'Share Screen'}
+                  >
+                    <Monitor className="w-4 h-4" />
+                    <span className="text-[9px] font-bold mt-0.5 hidden sm:inline">
+                      {isScreenSharing ? 'Stop Share' : 'Share Screen'}
+                    </span>
+                  </button>
+
+                  <div className="h-6 w-px bg-slate-700 mx-1 hidden sm:block"></div>
+
+                  {/* Raise Hand */}
                   <button
                     onClick={() => {
                       const next = !isHandRaised;
                       setIsHandRaised(next);
-                      if (toggleStudentHandRaise) {
-                        toggleStudentHandRaise(currentUser?.id);
-                      }
+                      toggleStudentHandRaise?.(currentUser?.id);
                       if (next && sendMeetingMessage) {
                         sendMeetingMessage({
                           senderId: currentUser?.id,
@@ -2106,59 +2483,185 @@ export default function StudentWorkstore() {
                         });
                       }
                     }}
-                    className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition ${
+                    className={`p-2.5 sm:px-3 rounded-xl text-xs font-semibold flex flex-col items-center justify-center transition ${
                       isHandRaised
                         ? 'bg-amber-500 text-white shadow-md shadow-amber-500/30'
-                        : 'bg-slate-800 text-slate-300 hover:text-white'
+                        : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'
                     }`}
+                    title="Raise / Lower Hand"
                   >
-                    ✋ {isHandRaised ? 'Hand Raised' : 'Raise Hand'}
+                    <span className="text-sm leading-none">✋</span>
+                    <span className="text-[9px] font-bold mt-0.5 hidden sm:inline">
+                      {isHandRaised ? 'Lower' : 'Raise'}
+                    </span>
                   </button>
 
-                  <button
-                    onClick={() => alert('Screen sharing request sent to Prof. Divya C (Host).')}
-                    className="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white"
-                    title="Request Screen Share"
-                  >
-                    <Monitor className="w-4 h-4" />
-                  </button>
+                  {/* Reactions Popover */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowReactionsMenu(!showReactionsMenu)}
+                      className={`p-2.5 rounded-xl transition flex flex-col items-center justify-center ${
+                        showReactionsMenu
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'
+                      }`}
+                      title="Send Reaction"
+                    >
+                      <Smile className="w-4 h-4" />
+                      <span className="text-[9px] font-bold mt-0.5 hidden sm:inline">React</span>
+                    </button>
+
+                    {showReactionsMenu && (
+                      <div className="absolute bottom-14 left-1/2 transform -translate-x-1/2 bg-slate-900 border border-slate-700 p-2 rounded-2xl shadow-2xl flex items-center gap-1.5 animate-fadeIn z-50">
+                        {['👏', '👍', '❤️', '💡', '🎉', '🔥'].map((emoji) => (
+                          <button
+                            key={emoji}
+                            onClick={() => handleSendReaction(emoji)}
+                            className="p-1.5 text-lg hover:scale-125 transition transform hover:bg-slate-800 rounded-xl"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* In-Meeting Live Chat */}
-              <div className="bg-slate-950 rounded-2xl border border-slate-800 flex flex-col justify-between p-3.5 h-96 lg:h-auto">
-                <div className="pb-2 border-b border-slate-800 flex items-center justify-between">
-                  <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                    <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
-                    Meeting Chat
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-mono">
-                    {admittedCount} online
-                  </span>
-                </div>
-
-                <div className="flex-1 overflow-y-auto space-y-2 py-3 pr-1">
-                  {chatMessages.map((m, idx) => (
-                    <div
-                      key={m.id || idx}
-                      className={`p-2 rounded-xl border text-xs ${
-                        m.isTeacher
-                          ? 'bg-indigo-950/50 border-indigo-800/60 text-indigo-100'
-                          : 'bg-slate-900 border-slate-800 text-slate-300'
+              {/* In-Meeting Side Drawer: Chat & Participants */}
+              <div className="bg-slate-950 rounded-2xl border border-slate-800 flex flex-col justify-between p-3.5 h-[420px] lg:h-auto shadow-xl">
+                {/* Side Drawer Tabs */}
+                <div>
+                  <div className="flex items-center gap-1.5 p-1 bg-slate-900 rounded-xl border border-slate-800 mb-3">
+                    <button
+                      onClick={() => setMeetingSideTab('chat')}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                        meetingSideTab === 'chat'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-white'
                       }`}
                     >
-                      <span className={`font-bold text-[11px] block ${m.isTeacher ? 'text-indigo-300' : 'text-slate-200'}`}>
-                        {m.senderName || m.sender} {m.isTeacher && '★ (Host)'}:
-                      </span>
-                      <span className="text-slate-300">{m.text || m.message}</span>
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>Chat ({liveChatMessages.length})</span>
+                    </button>
+                    <button
+                      onClick={() => setMeetingSideTab('participants')}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                        meetingSideTab === 'participants'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      <span>People ({liveAdmittedCount})</span>
+                    </button>
+                  </div>
+
+                  {/* Tab 1: Live Chat */}
+                  {meetingSideTab === 'chat' && (
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                      {liveChatMessages.length === 0 ? (
+                        <div className="py-12 text-center text-slate-500 text-xs">
+                          No messages yet. Say hello to the class!
+                        </div>
+                      ) : (
+                        liveChatMessages.map((m, idx) => (
+                          <div
+                            key={m.id || idx}
+                            className={`p-2.5 rounded-xl border text-xs ${
+                              m.isTeacher
+                                ? 'bg-indigo-950/60 border-indigo-800/60 text-indigo-100 ml-1'
+                                : 'bg-slate-900 border-slate-800 text-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-0.5">
+                              <span className={`font-bold text-[11px] ${m.isTeacher ? 'text-indigo-300' : 'text-slate-200'}`}>
+                                {m.senderName || m.sender} {m.isTeacher && '★ (Host)'}
+                              </span>
+                              {m.time && (
+                                <span className="text-[9px] text-slate-500 font-mono">{m.time}</span>
+                              )}
+                            </div>
+                            <p className="text-slate-300 leading-relaxed text-[11px]">{m.text || m.message}</p>
+                          </div>
+                        ))
+                      )}
                     </div>
-                  ))}
+                  )}
+
+                  {/* Tab 2: Participants Roster */}
+                  {meetingSideTab === 'participants' && (
+                    <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
+                      {/* Host Entry */}
+                      <div className="flex items-center justify-between p-2 rounded-xl bg-slate-900 border border-slate-800">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white text-[10px] font-bold">
+                            {hostInitials}
+                          </div>
+                          <div>
+                            <div className="text-xs font-semibold text-white">{hostName}</div>
+                            <div className="text-[10px] text-indigo-400 font-mono">Faculty Host</div>
+                          </div>
+                        </div>
+                        <span className="p-1 rounded bg-emerald-500/20 text-emerald-300">
+                          <Mic className="w-3 h-3" />
+                        </span>
+                      </div>
+
+                      {/* Current User Entry */}
+                      <div className="flex items-center justify-between p-2 rounded-xl bg-slate-900/80 border border-slate-800">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-cyan-600 flex items-center justify-center text-white text-[10px] font-bold">
+                            ME
+                          </div>
+                          <div>
+                            <div className="text-xs font-semibold text-white">
+                              {currentUser?.name || 'You'} (You)
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-mono">
+                              Roll: {currentUser?.rollNo || 'N/A'}
+                            </div>
+                          </div>
+                        </div>
+                        <span className={`p-1 rounded ${isMicOn ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}>
+                          {isMicOn ? <Mic className="w-3 h-3" /> : <MicOff className="w-3 h-3" />}
+                        </span>
+                      </div>
+
+                      {/* Other Students */}
+                      {admittedList
+                        .filter((s) => s.studentId !== currentUser?.id)
+                        .map((stud) => {
+                          const sId = stud.studentId || stud.id;
+                          return (
+                            <div
+                              key={sId}
+                              className="flex items-center justify-between p-2 rounded-xl bg-slate-900/60 border border-slate-800/80"
+                            >
+                              <div className="min-w-0 pr-2">
+                                <div className="text-xs font-semibold text-white truncate flex items-center gap-1.5">
+                                  <span>{stud.studentName || stud.name}</span>
+                                  {stud.hasHandRaised && <span>✋</span>}
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-mono">
+                                  Roll: {stud.rollNo || 'N/A'}
+                                </div>
+                              </div>
+                              <span className={`p-1 rounded ${!stud.isMuted ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}>
+                                {!stud.isMuted ? <Mic className="w-3 h-3" /> : <MicOff className="w-3 h-3" />}
+                              </span>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
                 </div>
 
-                <div className="pt-2 border-t border-slate-800 flex gap-1.5">
+                {/* Live Chat Input */}
+                <div className="pt-2 border-t border-slate-800 flex gap-1.5 mt-2">
                   <input
                     type="text"
-                    placeholder="Ask a question..."
+                    placeholder="Type message to class..."
                     value={newMeetingMsg}
                     onChange={(e) => setNewMeetingMsg(e.target.value)}
                     onKeyDown={(e) => {
@@ -2172,10 +2675,6 @@ export default function StudentWorkstore() {
                             isTeacher: false,
                           });
                         }
-                        setMeetingChat((prev) => [
-                          ...prev,
-                          { sender: currentUser?.name || 'Student', message: txt },
-                        ]);
                         setNewMeetingMsg('');
                       }
                     }}
@@ -2193,13 +2692,9 @@ export default function StudentWorkstore() {
                           isTeacher: false,
                         });
                       }
-                      setMeetingChat((prev) => [
-                        ...prev,
-                        { sender: currentUser?.name || 'Student', message: txt },
-                      ]);
                       setNewMeetingMsg('');
                     }}
-                    className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white"
+                    className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition"
                   >
                     <Send className="w-3.5 h-3.5" />
                   </button>

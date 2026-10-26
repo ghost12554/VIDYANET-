@@ -1812,6 +1812,52 @@ export function CollegeProvider({ children }) {
     }));
   };
 
+  const updateParticipantMeetingState = (participantId, updates = {}) => {
+    const pid = participantId || currentUser?.id;
+    setActiveMeeting((prev) => ({
+      ...prev,
+      admittedParticipants: (prev.admittedParticipants || []).map((p) => {
+        if (p.studentId === pid || p.id === pid) {
+          return { ...p, ...updates };
+        }
+        return p;
+      }),
+    }));
+  };
+
+  const updateHostMeetingState = (updates = {}) => {
+    setActiveMeeting((prev) => ({
+      ...prev,
+      ...updates,
+    }));
+  };
+
+  const setMeetingScreenSharer = (sharer = null) => {
+    setActiveMeeting((prev) => ({
+      ...prev,
+      screenSharer: sharer,
+    }));
+  };
+
+  const toggleAllowStudentScreenShare = () => {
+    setActiveMeeting((prev) => ({
+      ...prev,
+      allowStudentScreenShare: prev.allowStudentScreenShare === false ? true : false,
+    }));
+  };
+
+  const sendMeetingReaction = ({ senderId, senderName, emoji } = {}) => {
+    const sid = senderId || currentUser?.id;
+    const sname = senderName || currentUser?.name || 'Participant';
+    setActiveMeeting((prev) => ({
+      ...prev,
+      lastReaction: { senderId: sid, senderName: sname, emoji, timestamp: Date.now() },
+      admittedParticipants: (prev.admittedParticipants || []).map((p) =>
+        (p.studentId === sid || p.id === sid) ? { ...p, reaction: emoji, reactionTime: Date.now() } : p
+      ),
+    }));
+  };
+
   const sendMeetingMessage = ({ senderId, senderName, text, isTeacher } = {}) => {
     if (!text || !text.trim()) return;
     const newMsg = {
@@ -2359,6 +2405,11 @@ export function CollegeProvider({ children }) {
         leaveMeeting,
         toggleMeetingStudentMute,
         toggleStudentHandRaise,
+        updateParticipantMeetingState,
+        updateHostMeetingState,
+        setMeetingScreenSharer,
+        toggleAllowStudentScreenShare,
+        sendMeetingReaction,
         sendMeetingMessage,
       }}
     >

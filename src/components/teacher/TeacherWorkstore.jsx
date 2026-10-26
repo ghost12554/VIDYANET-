@@ -55,6 +55,9 @@ import {
   Share2,
   Copy,
   Link,
+  LayoutGrid,
+  Maximize2,
+  Smile,
 } from 'lucide-react';
 import {
   readFileAsAttachment,
@@ -99,6 +102,11 @@ export default function TeacherWorkstore() {
     denyStudentFromMeeting,
     admitAllWaitingStudents,
     toggleMeetingStudentMute,
+    updateParticipantMeetingState,
+    updateHostMeetingState,
+    setMeetingScreenSharer,
+    toggleAllowStudentScreenShare,
+    sendMeetingReaction,
     sendMeetingMessage,
     broadcastMeetingInvite,
     workstoreTargetTab,
@@ -106,6 +114,9 @@ export default function TeacherWorkstore() {
   } = useCollege();
 
   const { showToast, showModal } = useGoogleDialog();
+
+  const [meetingViewMode, setMeetingViewMode] = useState('speaker'); // 'speaker' | 'gallery'
+  const [showHostReactionsMenu, setShowHostReactionsMenu] = useState(false);
 
   const [activeTab, setActiveTab] = useState(() => {
     if (workstoreTargetTab) return workstoreTargetTab;
@@ -4243,6 +4254,34 @@ export default function TeacherWorkstore() {
                 <div className="px-2.5 py-1.5 rounded-xl bg-slate-800/80 text-slate-300 text-xs font-mono border border-slate-700">
                   Room ID: <span className="text-white font-bold">EDU-303-ZOOM</span>
                 </div>
+
+                {/* Zoom View Switcher */}
+                <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+                  <button
+                    onClick={() => setMeetingViewMode('speaker')}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 ${
+                      meetingViewMode === 'speaker'
+                        ? 'bg-purple-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                    title="Speaker View"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Speaker</span>
+                  </button>
+                  <button
+                    onClick={() => setMeetingViewMode('gallery')}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 ${
+                      meetingViewMode === 'gallery'
+                        ? 'bg-purple-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                    title="Gallery Grid View"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Gallery</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -4414,8 +4453,156 @@ export default function TeacherWorkstore() {
 
                 {/* Video Stage Display Area */}
                 <div className="absolute inset-0 flex items-center justify-center bg-slate-950">
-                  {/* Mode 1: Real Screen Sharing Video */}
-                  {isScreenSharing ? (
+                  {/* Mode 0: Student is Sharing Screen */}
+                  {activeMeeting?.screenSharer && activeMeeting.screenSharer.role === 'student' ? (
+                    <div className="w-full h-full relative flex items-center justify-center bg-black">
+                      <div className="absolute top-3 left-3 z-30 flex items-center gap-2">
+                        <span className="px-3 py-1 rounded-xl bg-purple-600/90 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg backdrop-blur-md">
+                          <Monitor className="w-3.5 h-3.5 text-cyan-300" />
+                          Student Presentation: {activeMeeting.screenSharer.name} is Sharing Screen
+                        </span>
+                        <button
+                          onClick={() => setMeetingScreenSharer(null)}
+                          className="px-2.5 py-1 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-semibold transition shadow"
+                        >
+                          Stop Student Share
+                        </button>
+                      </div>
+
+                      <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-400">
+                        <div className="w-20 h-20 rounded-full bg-cyan-600/20 border border-cyan-500/40 flex items-center justify-center text-cyan-300 mb-3 shadow-xl animate-pulse">
+                          <Monitor className="w-10 h-10" />
+                        </div>
+                        <h4 className="text-white font-bold text-base">
+                          {activeMeeting.screenSharer.name}'s Screen Broadcast Live
+                        </h4>
+                        <p className="text-xs text-slate-400 mt-1 max-w-md">
+                          High-resolution student screen stream transmitted to Classroom 303.
+                        </p>
+                      </div>
+
+                      {/* Floating Host PiP Thumbnail */}
+                      {isVideoOn && (
+                        <div className="absolute bottom-20 right-4 z-30 w-36 sm:w-48 aspect-video rounded-2xl overflow-hidden border-2 border-purple-500 shadow-2xl bg-slate-900 group">
+                          {cameraStream ? (
+                            <video
+                              ref={pipCameraRef}
+                              autoPlay
+                              playsInline
+                              muted
+                              className="w-full h-full object-cover transform -scale-x-100"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-purple-900/60 to-slate-900 text-white">
+                              <span className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold">
+                                {hostInitials}
+                              </span>
+                              <span className="text-[10px] text-slate-300 mt-1">Virtual Feed</span>
+                            </div>
+                          )}
+                          <div className="absolute bottom-1.5 left-2 bg-slate-950/80 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] text-white font-medium">
+                            {hostDisplayName} (You)
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : meetingViewMode === 'gallery' ? (
+                    /* Zoom Gallery Grid */
+                    <div className={`w-full h-full p-4 pt-12 pb-20 grid gap-3 overflow-y-auto ${
+                      currentAttendees.length === 0
+                        ? 'grid-cols-1'
+                        : currentAttendees.length === 1
+                        ? 'grid-cols-1 sm:grid-cols-2'
+                        : currentAttendees.length <= 3
+                        ? 'grid-cols-2 sm:grid-cols-2'
+                        : 'grid-cols-2 sm:grid-cols-3'
+                    }`}>
+                      {/* Host Tile */}
+                      <div className="relative rounded-2xl overflow-hidden bg-slate-900 border-2 border-purple-500 shadow-xl flex items-center justify-center min-h-[140px] aspect-video">
+                        {isVideoOn && cameraStream ? (
+                          <video
+                            ref={cameraVideoRef}
+                            autoPlay
+                            playsInline
+                            muted
+                            className="w-full h-full object-cover transform -scale-x-100"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-purple-950/70 p-4 text-center">
+                            <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white text-lg font-bold shadow-lg mb-2 ring-4 ring-purple-500/20">
+                              {hostInitials}
+                            </div>
+                            <span className="text-xs text-white font-semibold truncate max-w-[140px]">
+                              {hostDisplayName}
+                            </span>
+                            <span className="text-[10px] text-purple-300 font-mono mt-0.5">Faculty Host</span>
+                          </div>
+                        )}
+                        <div className="absolute bottom-2 left-2 bg-slate-950/80 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] text-white font-semibold flex items-center gap-1.5">
+                          <span>{hostDisplayName} (Host)</span>
+                          {isMicOn ? <Mic className="w-3 h-3 text-emerald-400" /> : <MicOff className="w-3 h-3 text-rose-400" />}
+                        </div>
+                      </div>
+
+                      {/* Student Tiles */}
+                      {currentAttendees.map((stud) => {
+                        const sId = stud.studentId || stud.id;
+                        const isStudentMuted = stud.isMuted !== undefined ? stud.isMuted : (mutedStudents[sId] ?? allMuted);
+                        const hasHand = Boolean(stud.hasHandRaised);
+                        const isSharing = Boolean(stud.isScreenSharing);
+                        const sInitials = (stud.studentName || stud.name || 'ST')
+                          .split(' ')
+                          .map((n) => n[0])
+                          .join('')
+                          .substring(0, 2)
+                          .toUpperCase();
+
+                        return (
+                          <div
+                            key={sId}
+                            className={`relative rounded-2xl overflow-hidden bg-slate-900 border ${
+                              !isStudentMuted ? 'border-emerald-500/80 ring-2 ring-emerald-500/20' : 'border-slate-800'
+                            } shadow-xl flex items-center justify-center min-h-[140px] aspect-video group`}
+                          >
+                            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-slate-950 p-4 text-center">
+                              <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-indigo-700 to-slate-800 flex items-center justify-center text-white text-lg font-bold shadow-lg mb-2">
+                                {sInitials}
+                              </div>
+                              <span className="text-xs text-white font-semibold truncate max-w-[140px]">
+                                {stud.studentName || stud.name}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                Roll: {stud.rollNo || 'N/A'} • {stud.department ? stud.department.split(' ')[0] : 'AIML'}
+                              </span>
+                              {isSharing && (
+                                <span className="mt-1 px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[9px] font-bold border border-cyan-500/30">
+                                  Sharing Screen
+                                </span>
+                              )}
+                            </div>
+
+                            {hasHand && (
+                              <div className="absolute top-2 right-2 text-xl animate-bounce" title="Hand Raised">
+                                ✋
+                              </div>
+                            )}
+
+                            {stud.reaction && (
+                              <div className="absolute top-2 right-2 text-2xl animate-bounce">
+                                {stud.reaction}
+                              </div>
+                            )}
+
+                            <div className="absolute bottom-2 left-2 bg-slate-950/80 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] text-white font-medium flex items-center gap-1.5">
+                              <span className="truncate max-w-[110px]">{stud.studentName || stud.name}</span>
+                              {isStudentMuted ? <MicOff className="w-3 h-3 text-rose-400" /> : <Mic className="w-3 h-3 text-emerald-400" />}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : isScreenSharing ? (
+                    /* Mode 1: Real Screen Sharing Video */
                     <div className="w-full h-full relative flex items-center justify-center bg-black">
                       <video
                         ref={screenVideoRef}
@@ -4659,6 +4846,56 @@ export default function TeacherWorkstore() {
                         </span>
                       </button>
                     )}
+
+                    {/* 5c. Screen Share Permission Toggle */}
+                    <button
+                      onClick={toggleAllowStudentScreenShare}
+                      className={`flex flex-col items-center justify-center p-2 sm:px-3 sm:py-2 rounded-xl transition duration-150 ${
+                        activeMeeting?.allowStudentScreenShare !== false
+                          ? 'bg-purple-600/30 text-purple-200 border border-purple-500/40 hover:bg-purple-600/50'
+                          : 'bg-slate-800 text-slate-400 hover:text-white'
+                      }`}
+                      title={activeMeeting?.allowStudentScreenShare !== false ? 'Students Allowed to Share Screen (Click to Restrict)' : 'Student Screen Share Restricted (Click to Allow)'}
+                    >
+                      <Monitor className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400" />
+                      <span className="text-[10px] font-semibold mt-0.5 hidden sm:inline">
+                        {activeMeeting?.allowStudentScreenShare !== false ? 'Share: Allowed' : 'Share: Blocked'}
+                      </span>
+                    </button>
+
+                    {/* 5d. Reactions */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowHostReactionsMenu(!showHostReactionsMenu)}
+                        className={`flex flex-col items-center justify-center p-2 sm:px-3 sm:py-2 rounded-xl transition duration-150 ${
+                          showHostReactionsMenu ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700'
+                        }`}
+                        title="Send Emoji Reaction to Class"
+                      >
+                        <Smile className="w-4 h-4 sm:w-5 sm:h-5" />
+                        <span className="text-[10px] font-semibold mt-0.5 hidden sm:inline">React</span>
+                      </button>
+                      {showHostReactionsMenu && (
+                        <div className="absolute bottom-16 left-1/2 transform -translate-x-1/2 bg-slate-900 border border-slate-700 p-2 rounded-2xl shadow-2xl flex items-center gap-1.5 animate-fadeIn z-50">
+                          {['👏', '👍', '❤️', '💡', '🎉', '🔥'].map((emoji) => (
+                            <button
+                              key={emoji}
+                              onClick={() => {
+                                sendMeetingReaction?.({
+                                  senderId: currentUser?.id,
+                                  senderName: hostDisplayName,
+                                  emoji,
+                                });
+                                setShowHostReactionsMenu(false);
+                              }}
+                              className="p-1.5 text-lg hover:scale-125 transition transform hover:bg-slate-800 rounded-xl"
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
 
                     {/* 6. Switch Side Tab (Roster / Chat) */}
                     <button
