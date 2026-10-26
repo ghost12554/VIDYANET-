@@ -113,7 +113,7 @@ export default function TeacherWorkstore() {
     setWorkstoreTargetTab,
   } = useCollege();
 
-  const { showToast, showModal } = useGoogleDialog();
+  const { showConfirm, showAlert, showToast } = useGoogleDialog();
 
   const [meetingViewMode, setMeetingViewMode] = useState('speaker'); // 'speaker' | 'gallery'
   const [showHostReactionsMenu, setShowHostReactionsMenu] = useState(false);
@@ -1436,9 +1436,17 @@ export default function TeacherWorkstore() {
                           </button>
                           <button
                             onClick={() => {
-                              if (confirm(`Delete assignment "${assign.title}"?`)) {
-                                deleteAssignment(assign.id);
-                              }
+                              showConfirm({
+                                title: 'Delete Assignment?',
+                                message: `Are you sure you want to delete assignment "${assign.title}"? This cannot be undone.`,
+                                confirmText: 'Delete Assignment',
+                                cancelText: 'Cancel',
+                                type: 'danger',
+                                onConfirm: () => {
+                                  deleteAssignment(assign.id);
+                                  showAlert(`Assignment "${assign.title}" deleted`, 'info');
+                                },
+                              });
                             }}
                             className="p-1.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition"
                             title="Delete Assignment"
@@ -2419,9 +2427,17 @@ export default function TeacherWorkstore() {
 
                             <button
                               onClick={() => {
-                                if (confirm(`Delete practical attendance record for ${rec.date}?`)) {
-                                  deletePracticalAttendanceRecord(rec.id);
-                                }
+                                showConfirm({
+                                  title: 'Delete Practical Attendance Record?',
+                                  message: `Are you sure you want to delete the practical attendance record for ${rec.date} (${rec.department || 'Lab'})?`,
+                                  confirmText: 'Delete Record',
+                                  cancelText: 'Cancel',
+                                  type: 'danger',
+                                  onConfirm: () => {
+                                    deletePracticalAttendanceRecord(rec.id);
+                                    showAlert('Practical attendance record deleted', 'info');
+                                  },
+                                });
                               }}
                               className="p-1.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition"
                               title="Delete practical record"
@@ -2889,9 +2905,17 @@ export default function TeacherWorkstore() {
                           )}
                           <button
                             onClick={() => {
-                              if (confirm(`Delete lab manual "${note.title}"?`)) {
-                                deleteLabNote(note.id);
-                              }
+                              showConfirm({
+                                title: 'Delete Lab Manual?',
+                                message: `Are you sure you want to delete lab manual "${note.title}"?`,
+                                confirmText: 'Delete Manual',
+                                cancelText: 'Cancel',
+                                type: 'danger',
+                                onConfirm: () => {
+                                  deleteLabNote(note.id);
+                                  showAlert(`Lab manual "${note.title}" deleted`, 'info');
+                                },
+                              });
                             }}
                             className="p-1.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition"
                             title="Delete Lab Note"
@@ -3618,9 +3642,17 @@ export default function TeacherWorkstore() {
                           <button
                             type="button"
                             onClick={() => {
-                              if (confirm(`Are you sure you want to delete assessment "${test.title}"?`)) {
-                                deleteTest(test.id);
-                              }
+                              showConfirm({
+                                title: 'Delete Assessment?',
+                                message: `Are you sure you want to delete assessment "${test.title}"? All student submission records for this test will be removed.`,
+                                confirmText: 'Delete Assessment',
+                                cancelText: 'Cancel',
+                                type: 'danger',
+                                onConfirm: () => {
+                                  deleteTest(test.id);
+                                  showAlert(`Assessment "${test.title}" deleted`, 'info');
+                                },
+                              });
                             }}
                             className="p-2 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition"
                             title="Delete Assessment"
@@ -4922,12 +4954,19 @@ export default function TeacherWorkstore() {
                     {/* 7. End Meeting Button */}
                     <button
                       onClick={() => {
-                        if (window.confirm('Do you want to end this online lecture session for all participants?')) {
-                          stopCamera();
-                          stopScreenShare();
-                          if (endHostMeeting) endHostMeeting();
-                          alert('Class lecture session ended. Meeting closed and attendance preserved.');
-                        }
+                        showConfirm({
+                          title: 'End Live Class Lecture?',
+                          message: 'Do you want to terminate this online lecture session for all participants? Attendance data will be preserved.',
+                          confirmText: 'End Class',
+                          cancelText: 'Stay in Class',
+                          type: 'danger',
+                          onConfirm: () => {
+                            stopCamera();
+                            stopScreenShare();
+                            if (endHostMeeting) endHostMeeting();
+                            showAlert('Class lecture session ended. Meeting closed.', 'info');
+                          },
+                        });
                       }}
                       className="flex flex-col items-center justify-center p-2 sm:px-3 sm:py-2 rounded-xl bg-rose-700 hover:bg-rose-600 text-white transition duration-150 shadow-md"
                       title="End Online Meeting"

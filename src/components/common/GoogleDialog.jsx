@@ -74,10 +74,12 @@ export function GoogleDialogProvider({ children }) {
     [showToast]
   );
 
-  // Automatically replace native browser window.alert with Google Workspace Toast
+  // Automatically replace native browser window.alert and window.confirm with Google Workspace Dialogs
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const originalAlert = window.alert;
+      const originalConfirm = window.confirm;
+
       window.alert = (msg) => {
         showToast({
           message: String(msg || ''),
@@ -86,11 +88,25 @@ export function GoogleDialogProvider({ children }) {
           duration: 4500,
         });
       };
+
+      window.confirm = (msg) => {
+        showConfirm({
+          title: 'Campus Action Confirmation',
+          message: String(msg || 'Are you sure you want to proceed?'),
+          confirmText: 'Confirm',
+          cancelText: 'Cancel',
+          type: 'danger',
+          onConfirm: () => {},
+        });
+        return false;
+      };
+
       return () => {
         window.alert = originalAlert;
+        window.confirm = originalConfirm;
       };
     }
-  }, [showToast]);
+  }, [showToast, showConfirm]);
 
   // Close active modal on Escape key
   useEffect(() => {

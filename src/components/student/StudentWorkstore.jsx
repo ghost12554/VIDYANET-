@@ -80,7 +80,7 @@ export default function StudentWorkstore() {
     sendMeetingMessage,
   } = useCollege();
 
-  const { showToast, showModal } = useGoogleDialog();
+  const { showConfirm, showAlert, showToast } = useGoogleDialog();
 
   const [activeTab, setActiveTab] = useState(() => {
     if (workstoreTargetTab) return workstoreTargetTab;
@@ -2155,16 +2155,22 @@ export default function StudentWorkstore() {
 
                 <button
                   onClick={() => {
-                    const confirmed = window.confirm('Are you sure you want to leave this live meeting?');
-                    if (confirmed) {
-                      if (studentCameraStream) {
-                        studentCameraStream.getTracks().forEach((t) => t.stop());
-                      }
-                      if (screenStream) {
-                        screenStream.getTracks().forEach((t) => t.stop());
-                      }
-                      leaveMeeting(currentUser?.id);
-                    }
+                    showConfirm({
+                      title: 'Leave Live Meeting?',
+                      message: 'Are you sure you want to disconnect from this virtual classroom session?',
+                      confirmText: 'Leave Class',
+                      cancelText: 'Stay',
+                      type: 'danger',
+                      onConfirm: () => {
+                        if (studentCameraStream) {
+                          studentCameraStream.getTracks().forEach((t) => t.stop());
+                        }
+                        if (screenStream) {
+                          screenStream.getTracks().forEach((t) => t.stop());
+                        }
+                        leaveMeeting(currentUser?.id);
+                      },
+                    });
                   }}
                   className="px-3 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white font-semibold transition text-xs flex items-center gap-1.5 border border-rose-500/30"
                 >

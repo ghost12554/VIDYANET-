@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useCollege } from '../../context/CollegeContext';
+import { useGoogleDialog } from '../common/GoogleDialog';
 import {
   readFileAsAttachment,
   downloadAttachment,
@@ -54,6 +55,8 @@ export default function StudentSocialFreak() {
     updateStudentProfile,
     setActiveMode,
   } = useCollege();
+
+  const { showConfirm, showAlert } = useGoogleDialog();
 
   // Navigation State: 'feed' | 'connect' | 'profile'
   const [activeMainTab, setActiveMainTab] = useState('feed');
@@ -541,9 +544,17 @@ export default function StudentSocialFreak() {
                         {isAuthor && (
                           <button
                             onClick={() => {
-                              if (confirm('Delete this post?')) {
-                                deletePost(post.id);
-                              }
+                              showConfirm({
+                                title: 'Delete Post?',
+                                message: 'Are you sure you want to delete this campus community post? This cannot be undone.',
+                                confirmText: 'Delete Post',
+                                cancelText: 'Cancel',
+                                type: 'danger',
+                                onConfirm: () => {
+                                  deletePost(post.id);
+                                  showAlert('Post deleted', 'info');
+                                },
+                              });
                             }}
                             className="p-1.5 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-slate-800 transition"
                             title="Delete your post"

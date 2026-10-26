@@ -3122,9 +3122,17 @@ export default function TeacherBotMarket() {
 
                             <button
                               onClick={() => {
-                                if (confirm(`Delete attendance record for ${rec.subject} on ${rec.date}?`)) {
-                                  deleteAttendanceRecord(rec.id);
-                                }
+                                showConfirm({
+                                  title: 'Delete Attendance Record?',
+                                  message: `Are you sure you want to delete the attendance record for ${rec.subject} on ${rec.date}?`,
+                                  confirmText: 'Delete Record',
+                                  cancelText: 'Cancel',
+                                  type: 'danger',
+                                  onConfirm: () => {
+                                    deleteAttendanceRecord(rec.id);
+                                    showAlert('Attendance record deleted', 'info');
+                                  },
+                                });
                               }}
                               className="p-1.5 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-slate-700/50 transition"
                               title="Delete record"
