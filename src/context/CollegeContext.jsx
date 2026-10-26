@@ -1498,21 +1498,64 @@ export function CollegeProvider({ children }) {
   // ChitChat - WhatsApp Mechanics
   const sendMessage = (chatId, text, attachment = null) => {
     if ((!text || !text.trim()) && !attachment) return;
+    const now = Date.now();
     const newMsg = {
-      id: `msg-${Date.now()}`,
+      id: `msg-${now}`,
       senderId: currentUser?.id || 'anonymous',
       senderName: currentUser?.name || 'User',
+      senderEmail: currentUser?.email || '',
       text: text ? text.trim() : '',
       attachment: attachment || null,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      createdAt: now,
       status: 'delivered',
+      readBy: [currentUser?.id],
       deletedFor: [],
       isDeletedForEveryone: false,
       reactions: {},
     };
 
     setChats((prev) =>
-      prev.map((c) => (c.id === chatId ? { ...c, messages: [...(c.messages || []), newMsg] } : c))
+      prev.map((c) => {
+        if (c.id !== chatId) return c;
+        // Clean disappearing messages if active
+        let currentMsgs = c.messages || [];
+        if (c.disappearingTimer === '24h') {
+          const cutoff = now - 24 * 60 * 60 * 1000;
+          currentMsgs = currentMsgs.filter((m) => !m.createdAt || m.createdAt > cutoff);
+        } else if (c.disappearingTimer === '3d') {
+          const cutoff = now - 3 * 24 * 60 * 60 * 1000;
+          currentMsgs = currentMsgs.filter((m) => !m.createdAt || m.createdAt > cutoff);
+        }
+        return {
+          ...c,
+          messages: [...currentMsgs, newMsg],
+        };
+      })
+    );
+  };
+
+  // Mark all unread messages in chat as read by current user
+  const markChatAsRead = (chatId) => {
+    const uid = currentUser?.id;
+    if (!uid) return;
+    setChats((prev) =>
+      prev.map((c) => {
+        if (c.id !== chatId) return c;
+        let changed = false;
+        const nextMsgs = (c.messages || []).map((m) => {
+          if (m.senderId !== uid && (!m.readBy || !m.readBy.includes(uid))) {
+            changed = true;
+            return {
+              ...m,
+              status: 'read',
+              readBy: [...(m.readBy || []), uid],
+            };
+          }
+          return m;
+        });
+        return changed ? { ...c, messages: nextMsgs } : c;
+      })
     );
   };
 
@@ -1558,6 +1601,134 @@ export function CollegeProvider({ children }) {
     );
   };
 
+  // Bulk delete selected messages
+  const deleteMultipleMessages = (chatId, messageIds = [], forEveryone = false) => {
+    const uid = currentUser?.id;
+    const idSet = new Set(messageIds);
+    setChats((prev) =>
+      prev.map((c) => {
+        if (c.id !== chatId) return c;
+        return {
+          ...c,
+          messages: (c.messages || []).map((m) => {
+            if (!idSet.has(m.id)) return m;
+            if (forEveryone) {
+              return {
+                ...m,
+                isDeletedForEveryone: true,
+                text: '🚫 This message was deleted',
+                attachment: null,
+              };
+            }
+            const currentDeleted = m.deletedFor || [];
+            return {
+              ...m,
+              deletedFor: currentDeleted.includes(uid) ? currentDeleted : [...currentDeleted, uid],
+            };
+          }),
+        };
+      })
+    );
+  };
+
+  // Clear full chat history
+  const clearChatMessages = (chatId) => {
+    setChats((prev) =>
+      prev.map((c) => (c.id === chatId ? { ...c, messages: [] } : c))
+    );
+  };
+
+  // Delete an entire chat or group from list
+  const deleteChat = (chatId) => {
+    setChats((prev) => prev.filter((c) => c.id !== chatId));
+  };
+
+  // Accept a pending chat request
+  const acceptChatRequest = (chatId) => {
+    setChats((prev) =>
+      prev.map((c) => {
+        if (c.id !== chatId) return c;
+        const acceptNotice = {
+          id: `m-accept-${Date.now()}`,
+          senderId: 'system',
+          senderName: 'System',
+          text: `🎉 Chat request accepted. You can now chat securely!`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          createdAt: Date.now(),
+          status: 'read',
+        };
+        return {
+          ...c,
+          isAccepted: true,
+          messages: [...(c.messages || []), acceptNotice],
+        };
+      })
+    );
+  };
+
+  // Decline/Reject a chat request
+  const declineChatRequest = (chatId) => {
+    setChats((prev) => prev.filter((c) => c.id !== chatId));
+  };
+
+  // Disappearing messages timer (Teacher controlled: 'off' | '24h' | '3d')
+  const setChatDisappearingTimer = (chatId, timer = 'off') => {
+    const now = Date.now();
+    setChats((prev) =>
+      prev.map((c) => {
+        if (c.id !== chatId) return c;
+        const label = timer === 'off' ? 'turned off' : timer === '24h' ? 'set to 24 hours' : 'set to 3 days';
+        const timerNotice = {
+          id: `m-timer-${now}`,
+          senderId: 'system',
+          senderName: 'System',
+          text: `⏳ Disappearing messages was ${label}. New messages will expire accordingly.`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          createdAt: now,
+          status: 'read',
+        };
+        return {
+          ...c,
+          disappearingTimer: timer,
+          messages: [...(c.messages || []), timerNotice],
+        };
+      })
+    );
+  };
+
+  // Group Admin toggling (Make Admin / Dismiss as Admin)
+  const toggleGroupAdmin = (chatId, memberEmailOrId) => {
+    setChats((prev) =>
+      prev.map((c) => {
+        if (c.id !== chatId || !c.isGroup) return c;
+        const currentAdmins = c.admins || [];
+        const isAlreadyAdmin = currentAdmins.includes(memberEmailOrId);
+        const nextAdmins = isAlreadyAdmin
+          ? currentAdmins.filter((a) => a !== memberEmailOrId)
+          : [...currentAdmins, memberEmailOrId];
+        return {
+          ...c,
+          admins: nextAdmins.length > 0 ? nextAdmins : currentAdmins,
+        };
+      })
+    );
+  };
+
+  // Remove member from group
+  const removeGroupMember = (chatId, memberEmailOrId) => {
+    setChats((prev) =>
+      prev.map((c) => {
+        if (c.id !== chatId || !c.isGroup) return c;
+        return {
+          ...c,
+          members: (c.members || []).filter((m) => m !== memberEmailOrId),
+          memberEmails: (c.memberEmails || []).filter((e) => e !== memberEmailOrId),
+          admins: (c.admins || []).filter((a) => a !== memberEmailOrId),
+        };
+      })
+    );
+  };
+
   // Add / Toggle emoji reaction
   const addMessageReaction = (chatId, messageId, emoji) => {
     const uid = currentUser?.id;
@@ -1591,37 +1762,49 @@ export function CollegeProvider({ children }) {
     );
   };
 
-  // Start or open a direct chat by contact/phone number (e.g. Teacher-to-Teacher or Teacher-to-Student)
-  const createDirectChat = ({ contactId, contactName, contactPhone, avatar, isTeacher, department }) => {
+  // Start or open a direct chat by registered email (with Chat Request / Approval workflow)
+  const createDirectChat = ({ contactId, contactName, contactEmail, avatar, isTeacher, department, initialGreeting }) => {
+    const targetEmail = (contactEmail || '').toLowerCase().trim();
     const existing = chats.find(
       (c) =>
         !c.isGroup &&
-        ((c.phone && contactPhone && c.phone === contactPhone) ||
+        ((targetEmail && c.email && c.email.toLowerCase() === targetEmail) ||
           (contactId && c.members?.includes(contactId)) ||
-          c.name.toLowerCase() === contactName.toLowerCase())
+          (c.name && contactName && c.name.toLowerCase() === contactName.toLowerCase()))
     );
     if (existing) {
       return existing.id;
     }
 
+    const resolvedEmail = targetEmail || `${(contactName || 'user').toLowerCase().replace(/\s+/g, '.')}@indira.edu`;
     const newChat = {
       id: `chat-dm-${Date.now()}`,
-      name: contactName,
+      name: contactName || resolvedEmail.split('@')[0],
+      email: resolvedEmail,
       isGroup: false,
       isTeacherDirect: Boolean(isTeacher),
-      phone: contactPhone || '+91 98000 00000',
       department: department || 'Information Technology',
-      members: [currentUser?.id, contactId].filter(Boolean),
-      avatar: avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(contactName)}`,
+      members: [currentUser?.id, contactId || resolvedEmail].filter(Boolean),
+      memberEmails: [currentUser?.email, resolvedEmail].filter(Boolean),
+      avatar: avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(resolvedEmail)}`,
       status: 'online',
+      isAccepted: false, // Requires recipient to accept to start chatting
+      requestedBy: currentUser?.id,
+      requestedByEmail: currentUser?.email,
+      requestedByName: currentUser?.name || 'Faculty',
+      requestedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      disappearingTimer: 'off',
       messages: [
         {
-          id: `m-${Date.now()}`,
+          id: `m-init-${Date.now()}`,
           senderId: currentUser?.id,
           senderName: currentUser?.name || 'User',
-          text: `Conversation started with ${contactName}.`,
+          senderEmail: currentUser?.email,
+          text: initialGreeting || `👋 Hello! Chat request sent. Once accepted, we can chat securely on ChitChat.`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          status: 'read',
+          createdAt: Date.now(),
+          status: 'sent',
+          readBy: [currentUser?.id],
         },
       ],
     };
@@ -1630,28 +1813,36 @@ export function CollegeProvider({ children }) {
     return newChat.id;
   };
 
-  const createGroupChat = ({ name, memberIds, onlyAdminsCanPost }) => {
+  // Create group chat with member emails & WhatsApp-grade admin selectors
+  const createGroupChat = ({ name, description = '', memberEmails = [], onlyAdminsCanPost = false }) => {
+    const creatorEmail = currentUser?.email || 'faculty@indira.edu';
+    const allMembers = Array.from(new Set([creatorEmail, ...memberEmails.filter(Boolean)]));
     const newChat = {
       id: `chat-group-${Date.now()}`,
-      name,
+      name: name.trim(),
+      description: description.trim(),
       isGroup: true,
       onlyAdminsCanPost: Boolean(onlyAdminsCanPost),
-      admins: [currentUser.id],
-      members: [currentUser.id, ...(memberIds || [])],
+      admins: [currentUser?.id, creatorEmail],
+      members: [currentUser?.id, ...allMembers],
+      memberEmails: allMembers,
       avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(name)}`,
-      phone: '+91 (020) 2293-8000',
+      disappearingTimer: 'off',
+      isAccepted: true,
       messages: [
         {
           id: `m-init-${Date.now()}`,
-          senderId: currentUser.id,
-          senderName: currentUser.name,
-          text: `Group "${name}" created.`,
-          timestamp: 'Just now',
+          senderId: currentUser?.id,
+          senderName: currentUser?.name || 'Faculty',
+          text: `🎉 Group "${name}" created by ${currentUser?.name || 'Faculty'}.`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          createdAt: Date.now(),
           status: 'read',
         },
       ],
     };
     setChats((prev) => [newChat, ...prev]);
+    return newChat.id;
   };
 
   // ZOOM-STYLE LIVE MEETING & WAITING ROOM
@@ -2361,8 +2552,17 @@ export function CollegeProvider({ children }) {
         submitTestResult,
         updateTestScore,
         sendMessage,
+        markChatAsRead,
         deleteMessageForMe,
         deleteMessageForEveryone,
+        deleteMultipleMessages,
+        clearChatMessages,
+        deleteChat,
+        acceptChatRequest,
+        declineChatRequest,
+        setChatDisappearingTimer,
+        toggleGroupAdmin,
+        removeGroupMember,
         addMessageReaction,
         createDirectChat,
         createGroupChat,
