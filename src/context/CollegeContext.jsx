@@ -1939,23 +1939,43 @@ export function CollegeProvider({ children }) {
 
   const updateStudentProfile = (updates) => {
     if (!currentUser) return;
-    setCurrentUser((prev) => ({ ...prev, ...updates }));
+    setCurrentUser((prev) => {
+      const updated = { ...prev, ...updates };
+      try {
+        localStorage.setItem('indira_ums_currentUser', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Could not persist updated user to localStorage', e);
+      }
+      return updated;
+    });
+
     setStudents((prev) =>
       prev.map((s) => (s.id === currentUser.id ? { ...s, ...updates } : s))
     );
+    setTeachers((prev) =>
+      prev.map((t) => (t.id === currentUser.id ? { ...t, ...updates } : t))
+    );
   };
 
-  // Emergency Document Drive
+  const updateUserProfile = updateStudentProfile;
+
+  // Emergency Document Drive & Digital Vault
   const uploadEmergencyDoc = (doc) => {
     const newDoc = {
-      id: `doc-${Date.now()}`,
-      userId: currentUser.id,
+      id: doc.id || `doc-${Date.now()}`,
+      userId: currentUser?.id || 'anon',
       title: doc.title,
-      category: doc.category || 'General Document',
+      category: doc.category || 'Identity Proof',
       fileSize: doc.fileSize || '1.2 MB',
-      uploadedAt: new Date().toISOString().split('T')[0],
+      fileData: doc.fileData || null,
+      fileName: doc.fileName || `${doc.title}.pdf`,
+      fileType: doc.fileType || 'application/pdf',
+      uploadedAt: doc.uploadedAt || new Date().toISOString().split('T')[0],
+      verified: doc.verified ?? true,
+      issuer: doc.issuer || 'Indira University Registrar',
     };
     setEmergencyDocs((prev) => [newDoc, ...prev]);
+    return newDoc;
   };
 
   const deleteEmergencyDoc = (docId) => {
@@ -2080,6 +2100,7 @@ export function CollegeProvider({ children }) {
         rejectConnectionRequest,
         toggleFollowUser,
         updateStudentProfile,
+        updateUserProfile,
         deleteNotification,
         deleteSelectedNotifications,
         clearAllNotifications,
