@@ -158,16 +158,8 @@ export default function TeacherDashboard() {
           </div>
 
           {/* Quick Metrics */}
-          <div className="grid grid-cols-2 gap-3 w-full md:w-auto">
-            <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-purple-500/30 text-center">
-              <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                Enrolled Cadets
-              </span>
-              <p className="text-2xl font-black text-purple-300">{approvedStudents.length}</p>
-              <span className="text-[10px] text-emerald-400">Classroom 303</span>
-            </div>
-
-            <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-rose-500/30 text-center">
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-rose-500/30 text-center min-w-[140px]">
               <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
                 Pending Requests
               </span>
@@ -218,7 +210,7 @@ export default function TeacherDashboard() {
                 {/* Gamified Quest Badge */}
                 <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
                   <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono text-[10px] font-bold uppercase tracking-wider">
-                    Cadet Admission Quest
+                    Student Admission Request
                   </span>
                   <span className="text-[10px] text-slate-400 font-mono">
                     Roll #{stud.rollNo}
