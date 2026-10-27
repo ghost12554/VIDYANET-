@@ -44,12 +44,35 @@ export function subscribeToCollection(collectionName, onData, onError) {
   }
 }
 
+// Sanitize data for Firestore: removes undefined, functions, and prevents oversized base64 doc errors (>500KB)
+export function sanitizeForFirestore(obj) {
+  if (obj === null || obj === undefined) return null;
+  if (typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeForFirestore);
+  }
+  const clean = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === undefined || typeof value === 'function') continue;
+    if (key === 'dataUrl' && typeof value === 'string' && value.length > 500000) {
+      clean[key] = null;
+      clean['isOversized'] = true;
+    } else if (typeof value === 'object' && value !== null) {
+      clean[key] = sanitizeForFirestore(value);
+    } else {
+      clean[key] = value;
+    }
+  }
+  return clean;
+}
+
 // Save document with explicit ID
 export async function setFirestoreDoc(collectionName, docId, data) {
   try {
     if (!db) return { success: false, error: 'Database not initialized' };
     const docRef = doc(db, collectionName, String(docId));
-    await setDoc(docRef, { ...data, updatedAt: new Date().toISOString() }, { merge: true });
+    const cleanData = sanitizeForFirestore(data);
+    await setDoc(docRef, { ...cleanData, updatedAt: new Date().toISOString() }, { merge: true });
     return { success: true };
   } catch (err) {
     console.warn(`Error writing to ${collectionName}:`, err);

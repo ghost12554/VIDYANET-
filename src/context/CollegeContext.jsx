@@ -384,9 +384,288 @@ export function CollegeProvider({ children }) {
       });
     });
 
+    // 3. Live Notes sync across devices
+    const unsubNotes = subscribeToCollection('notes', (cloudNotes) => {
+      if (!cloudNotes || !Array.isArray(cloudNotes)) return;
+      setNotes((prevNotes) => {
+        const noteMap = new Map((prevNotes || []).map((n) => [n.id, n]));
+        let hasChanges = false;
+        cloudNotes.forEach((cn) => {
+          if (!cn || !cn.id) return;
+          const existing = noteMap.get(cn.id);
+          if (!existing) {
+            noteMap.set(cn.id, cn);
+            hasChanges = true;
+          } else {
+            const merged = { ...cn };
+            if (existing?.attachment?.dataUrl && !merged.attachment?.dataUrl) {
+              merged.attachment = { ...merged.attachment, dataUrl: existing.attachment.dataUrl };
+            }
+            if (JSON.stringify(existing) !== JSON.stringify(merged)) {
+              noteMap.set(cn.id, merged);
+              hasChanges = true;
+            }
+          }
+        });
+        if (hasChanges) {
+          const updated = Array.from(noteMap.values());
+          try { localStorage.setItem('indira_ums_notes', JSON.stringify(updated)); } catch (e) {}
+          return updated;
+        }
+        return prevNotes;
+      });
+    });
+
+    // 4. Live Lab Notes sync across devices
+    const unsubLabNotes = subscribeToCollection('labNotes', (cloudLabNotes) => {
+      if (!cloudLabNotes || !Array.isArray(cloudLabNotes)) return;
+      setLabNotes((prev) => {
+        const map = new Map((prev || []).map((n) => [n.id, n]));
+        let hasChanges = false;
+        cloudLabNotes.forEach((item) => {
+          if (!item || !item.id) return;
+          if (!map.has(item.id)) {
+            map.set(item.id, item);
+            hasChanges = true;
+          }
+        });
+        if (hasChanges) {
+          const updated = Array.from(map.values());
+          try { localStorage.setItem('indira_ums_labNotes', JSON.stringify(updated)); } catch (e) {}
+          return updated;
+        }
+        return prev;
+      });
+    });
+
+    // 5. Live Assignments sync (including student solutions & teacher grades)
+    const unsubAssignments = subscribeToCollection('assignments', (cloudAssignments) => {
+      if (!cloudAssignments || !Array.isArray(cloudAssignments)) return;
+      setAssignments((prevAssignments) => {
+        const assignMap = new Map((prevAssignments || []).map((a) => [a.id, a]));
+        let hasChanges = false;
+        cloudAssignments.forEach((ca) => {
+          if (!ca || !ca.id) return;
+          const existing = assignMap.get(ca.id);
+          if (!existing) {
+            assignMap.set(ca.id, ca);
+            hasChanges = true;
+          } else {
+            const existingSubs = existing.submissions || [];
+            const cloudSubs = ca.submissions || [];
+            const subMap = new Map();
+            existingSubs.forEach((s) => subMap.set(s.studentId, s));
+            cloudSubs.forEach((s) => {
+              const ex = subMap.get(s.studentId);
+              if (!ex || s.graded || (s.submittedAt && s.submittedAt >= (ex.submittedAt || ''))) {
+                subMap.set(s.studentId, { ...ex, ...s });
+              }
+            });
+            const mergedAssign = { ...existing, ...ca, submissions: Array.from(subMap.values()) };
+            if (JSON.stringify(existing) !== JSON.stringify(mergedAssign)) {
+              assignMap.set(ca.id, mergedAssign);
+              hasChanges = true;
+            }
+          }
+        });
+        if (hasChanges) {
+          const updated = Array.from(assignMap.values());
+          try { localStorage.setItem('indira_ums_assignments', JSON.stringify(updated)); } catch (e) {}
+          return updated;
+        }
+        return prevAssignments;
+      });
+    });
+
+    // 6. Live Tests & Quizzes sync (including student exam/terminal code test results)
+    const unsubTests = subscribeToCollection('tests', (cloudTests) => {
+      if (!cloudTests || !Array.isArray(cloudTests)) return;
+      setTests((prevTests) => {
+        const testMap = new Map((prevTests || []).map((t) => [t.id, t]));
+        let hasChanges = false;
+        cloudTests.forEach((ct) => {
+          if (!ct || !ct.id) return;
+          const existing = testMap.get(ct.id);
+          if (!existing) {
+            testMap.set(ct.id, ct);
+            hasChanges = true;
+          } else {
+            const mergedResults = { ...(existing.studentResults || {}), ...(ct.studentResults || {}) };
+            const mergedTest = { ...existing, ...ct, studentResults: mergedResults };
+            if (JSON.stringify(existing) !== JSON.stringify(mergedTest)) {
+              testMap.set(ct.id, mergedTest);
+              hasChanges = true;
+            }
+          }
+        });
+        if (hasChanges) {
+          const updated = Array.from(testMap.values());
+          try { localStorage.setItem('indira_ums_tests', JSON.stringify(updated)); } catch (e) {}
+          return updated;
+        }
+        return prevTests;
+      });
+    });
+
+    // 7. Live Tasks sync (including student task submissions)
+    const unsubTasks = subscribeToCollection('tasks', (cloudTasks) => {
+      if (!cloudTasks || !Array.isArray(cloudTasks)) return;
+      setTasks((prevTasks) => {
+        const taskMap = new Map((prevTasks || []).map((t) => [t.id, t]));
+        let hasChanges = false;
+        cloudTasks.forEach((ct) => {
+          if (!ct || !ct.id) return;
+          const existing = taskMap.get(ct.id);
+          if (!existing) {
+            taskMap.set(ct.id, ct);
+            hasChanges = true;
+          } else {
+            const mergedSubs = { ...(existing.submissions || {}), ...(ct.submissions || {}) };
+            const mergedTask = { ...existing, ...ct, submissions: mergedSubs };
+            if (JSON.stringify(existing) !== JSON.stringify(mergedTask)) {
+              taskMap.set(ct.id, mergedTask);
+              hasChanges = true;
+            }
+          }
+        });
+        if (hasChanges) {
+          const updated = Array.from(taskMap.values());
+          try { localStorage.setItem('indira_ums_tasks', JSON.stringify(updated)); } catch (e) {}
+          return updated;
+        }
+        return prevTasks;
+      });
+    });
+
+    // 8. Live Teacher Bot Market History sync
+    const unsubBotHistory = subscribeToCollection('botHistory', (cloudBotHist) => {
+      if (!cloudBotHist || !Array.isArray(cloudBotHist)) return;
+      setBotHistory((prev) => {
+        const map = new Map((prev || []).map((b) => [b.id, b]));
+        let hasChanges = false;
+        cloudBotHist.forEach((item) => {
+          if (!item || !item.id) return;
+          if (!map.has(item.id)) {
+            map.set(item.id, item);
+            hasChanges = true;
+          }
+        });
+        if (hasChanges) {
+          const updated = Array.from(map.values()).sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+          try { localStorage.setItem('indira_ums_botHistory', JSON.stringify(updated)); } catch (e) {}
+          return updated;
+        }
+        return prev;
+      });
+    });
+
+    // 9. Live ChitChat sync (group chats, direct chats, messages)
+    const unsubChats = subscribeToCollection('chats', (cloudChats) => {
+      if (!cloudChats || !Array.isArray(cloudChats)) return;
+      setChats((prevChats) => {
+        const chatMap = new Map((prevChats || []).map((c) => [c.id, c]));
+        let hasChanges = false;
+        cloudChats.forEach((cc) => {
+          if (!cc || !cc.id) return;
+          const existing = chatMap.get(cc.id);
+          if (!existing) {
+            chatMap.set(cc.id, cc);
+            hasChanges = true;
+          } else {
+            const msgMap = new Map((existing.messages || []).map((m) => [m.id, m]));
+            (cc.messages || []).forEach((m) => {
+              if (m && m.id) msgMap.set(m.id, m);
+            });
+            const mergedMsgs = Array.from(msgMap.values()).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+            const mergedChat = { ...existing, ...cc, messages: mergedMsgs };
+            if (JSON.stringify(existing) !== JSON.stringify(mergedChat)) {
+              chatMap.set(cc.id, mergedChat);
+              hasChanges = true;
+            }
+          }
+        });
+        if (hasChanges) {
+          const updated = Array.from(chatMap.values());
+          try { localStorage.setItem('indira_ums_chats', JSON.stringify(updated)); } catch (e) {}
+          return updated;
+        }
+        return prevChats;
+      });
+    });
+
+    // 10. Live Social Freak Posts sync
+    const unsubPosts = subscribeToCollection('posts', (cloudPosts) => {
+      if (!cloudPosts || !Array.isArray(cloudPosts)) return;
+      setPosts((prevPosts) => {
+        const postMap = new Map((prevPosts || []).map((p) => [p.id, p]));
+        let hasChanges = false;
+        cloudPosts.forEach((cp) => {
+          if (!cp || !cp.id) return;
+          const existing = postMap.get(cp.id);
+          if (!existing || JSON.stringify(existing) !== JSON.stringify(cp)) {
+            postMap.set(cp.id, cp);
+            hasChanges = true;
+          }
+        });
+        if (hasChanges) {
+          const updated = Array.from(postMap.values()).sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+          try { localStorage.setItem('indira_ums_posts', JSON.stringify(updated)); } catch (e) {}
+          return updated;
+        }
+        return prevPosts;
+      });
+    });
+
+    // 11. Live Student Awareness Reminders sync
+    const unsubAwareness = subscribeToCollection('awarenessMessages', (cloudMsgs) => {
+      if (!cloudMsgs || !Array.isArray(cloudMsgs)) return;
+      setAwarenessMessages((prev) => {
+        const map = new Map((prev || []).map((m) => [m.id, m]));
+        let hasChanges = false;
+        cloudMsgs.forEach((cm) => {
+          if (!cm || !cm.id) return;
+          if (!map.has(cm.id) || map.get(cm.id)?.status !== cm.status) {
+            map.set(cm.id, cm);
+            hasChanges = true;
+          }
+        });
+        if (hasChanges) {
+          const updated = Array.from(map.values());
+          try { localStorage.setItem('indira_ums_awarenessMessages', JSON.stringify(updated)); } catch (e) {}
+          return updated;
+        }
+        return prev;
+      });
+    });
+
+    // 12. Live Zoom-style Lecture Studio Meeting sync
+    const unsubMeeting = subscribeToCollection('meeting', (cloudMeetings) => {
+      if (!cloudMeetings || !Array.isArray(cloudMeetings)) return;
+      const activeDoc = cloudMeetings.find((m) => m.id === 'active_meeting') || cloudMeetings[0];
+      if (activeDoc) {
+        setActiveMeeting((prev) => {
+          if (JSON.stringify(prev) !== JSON.stringify(activeDoc)) {
+            try { localStorage.setItem('indira_ums_meeting', JSON.stringify(activeDoc)); } catch (e) {}
+            return activeDoc;
+          }
+          return prev;
+        });
+      }
+    });
+
     return () => {
       if (typeof unsubRequests === 'function') unsubRequests();
       if (typeof unsubUsers === 'function') unsubUsers();
+      if (typeof unsubNotes === 'function') unsubNotes();
+      if (typeof unsubLabNotes === 'function') unsubLabNotes();
+      if (typeof unsubAssignments === 'function') unsubAssignments();
+      if (typeof unsubTests === 'function') unsubTests();
+      if (typeof unsubTasks === 'function') unsubTasks();
+      if (typeof unsubBotHistory === 'function') unsubBotHistory();
+      if (typeof unsubChats === 'function') unsubChats();
+      if (typeof unsubPosts === 'function') unsubPosts();
+      if (typeof unsubAwareness === 'function') unsubAwareness();
+      if (typeof unsubMeeting === 'function') unsubMeeting();
     };
   }, []);
 
@@ -1436,6 +1715,10 @@ export function CollegeProvider({ children }) {
     };
     setLabNotes((prev) => [newNote, ...(prev || [])]);
 
+    if (isRealFirebaseConfigured) {
+      setFirestoreDoc('labNotes', newNote.id, newNote);
+    }
+
     setNotifications((prev) => [
       {
         id: `notif-${Date.now()}`,
@@ -1451,6 +1734,9 @@ export function CollegeProvider({ children }) {
 
   const deleteLabNote = (noteId) => {
     setLabNotes((prev) => (prev || []).filter((n) => n.id !== noteId));
+    if (isRealFirebaseConfigured) {
+      deleteFirestoreDoc('labNotes', noteId);
+    }
   };
 
   // Task Tracking
@@ -1468,6 +1754,10 @@ export function CollegeProvider({ children }) {
     };
     setTasks((prev) => [newTask, ...prev]);
 
+    if (isRealFirebaseConfigured) {
+      setFirestoreDoc('tasks', newTask.id, newTask);
+    }
+
     setNotifications((prev) => [
       {
         id: `notif-${Date.now()}`,
@@ -1483,27 +1773,36 @@ export function CollegeProvider({ children }) {
 
   const deleteTask = (taskId) => {
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    if (isRealFirebaseConfigured) {
+      deleteFirestoreDoc('tasks', taskId);
+    }
   };
 
   const submitStudentTask = (taskId, studentId, submissionDetails) => {
+    let nextSubmissions = null;
     setTasks((prev) =>
       prev.map((t) => {
         if (t.id === taskId) {
+          nextSubmissions = {
+            ...t.submissions,
+            [studentId]: {
+              status: 'DONE',
+              submittedAt: new Date().toISOString(),
+              ...submissionDetails,
+            },
+          };
           return {
             ...t,
-            submissions: {
-              ...t.submissions,
-              [studentId]: {
-                status: 'DONE',
-                submittedAt: new Date().toISOString(),
-                ...submissionDetails,
-              },
-            },
+            submissions: nextSubmissions,
           };
         }
         return t;
       })
     );
+
+    if (isRealFirebaseConfigured && nextSubmissions) {
+      setFirestoreDoc('tasks', taskId, { submissions: nextSubmissions });
+    }
   };
 
   // Notes Management
@@ -1537,6 +1836,10 @@ export function CollegeProvider({ children }) {
     };
     setNotes((prev) => [newNote, ...prev]);
 
+    if (isRealFirebaseConfigured) {
+      setFirestoreDoc('notes', newNote.id, newNote);
+    }
+
     setNotifications((prev) => [
       {
         id: `notif-${Date.now()}`,
@@ -1552,6 +1855,9 @@ export function CollegeProvider({ children }) {
 
   const deleteNote = (noteId) => {
     setNotes((prev) => prev.filter((n) => n.id !== noteId));
+    if (isRealFirebaseConfigured) {
+      deleteFirestoreDoc('notes', noteId);
+    }
   };
 
   // Student Reminder Awareness System (Strictly reminder awareness, no attachments, no communication)
@@ -1572,6 +1878,10 @@ export function CollegeProvider({ children }) {
 
     setAwarenessMessages((prev) => [newMsg, ...prev]);
 
+    if (isRealFirebaseConfigured) {
+      setFirestoreDoc('awarenessMessages', newMsg.id, newMsg);
+    }
+
     setNotifications((prev) => [
       {
         id: `notif-${Date.now()}`,
@@ -1589,10 +1899,16 @@ export function CollegeProvider({ children }) {
     setAwarenessMessages((prev) =>
       prev.map((m) => (m.id === reminderId ? { ...m, status: 'ACKNOWLEDGED' } : m))
     );
+    if (isRealFirebaseConfigured) {
+      setFirestoreDoc('awarenessMessages', reminderId, { status: 'ACKNOWLEDGED' });
+    }
   };
 
   const deleteAwarenessMessage = (messageId) => {
     setAwarenessMessages((prev) => prev.filter((m) => m.id !== messageId));
+    if (isRealFirebaseConfigured) {
+      deleteFirestoreDoc('awarenessMessages', messageId);
+    }
   };
 
   // Assignments Management
@@ -1614,6 +1930,10 @@ export function CollegeProvider({ children }) {
     };
     setAssignments((prev) => [newAssign, ...prev]);
 
+    if (isRealFirebaseConfigured) {
+      setFirestoreDoc('assignments', newAssign.id, newAssign);
+    }
+
     setNotifications((prev) => [
       {
         id: `notif-${Date.now()}`,
@@ -1629,9 +1949,13 @@ export function CollegeProvider({ children }) {
 
   const deleteAssignment = (assignId) => {
     setAssignments((prev) => prev.filter((a) => a.id !== assignId));
+    if (isRealFirebaseConfigured) {
+      deleteFirestoreDoc('assignments', assignId);
+    }
   };
 
   const submitAssignment = (assignId, submission) => {
+    let nextSubmissions = null;
     setAssignments((prev) =>
       prev.map((a) => {
         if (a.id === assignId) {
@@ -1662,32 +1986,43 @@ export function CollegeProvider({ children }) {
             graded: false,
             feedback: '',
           };
+          nextSubmissions = [...filtered, newSub];
           return {
             ...a,
-            submissions: [...filtered, newSub],
+            submissions: nextSubmissions,
           };
         }
         return a;
       })
     );
+
+    if (isRealFirebaseConfigured && nextSubmissions) {
+      setFirestoreDoc('assignments', assignId, { submissions: nextSubmissions });
+    }
   };
 
   const gradeAssignment = (assignId, studentId, score, feedback) => {
+    let nextSubmissions = null;
     setAssignments((prev) =>
       prev.map((a) => {
         if (a.id === assignId) {
+          nextSubmissions = a.submissions.map((sub) =>
+            sub.studentId === studentId
+              ? { ...sub, score: Number(score), graded: true, feedback }
+              : sub
+          );
           return {
             ...a,
-            submissions: a.submissions.map((sub) =>
-              sub.studentId === studentId
-                ? { ...sub, score: Number(score), graded: true, feedback }
-                : sub
-            ),
+            submissions: nextSubmissions,
           };
         }
         return a;
       })
     );
+
+    if (isRealFirebaseConfigured && nextSubmissions) {
+      setFirestoreDoc('assignments', assignId, { submissions: nextSubmissions });
+    }
   };
 
   // Test & Quiz Management
@@ -1710,6 +2045,10 @@ export function CollegeProvider({ children }) {
     };
     setTests((prev) => [newTest, ...prev]);
 
+    if (isRealFirebaseConfigured) {
+      setFirestoreDoc('tests', newTest.id, newTest);
+    }
+
     setNotifications((prev) => [
       {
         id: `notif-${Date.now()}`,
@@ -1725,9 +2064,13 @@ export function CollegeProvider({ children }) {
 
   const deleteTest = (testId) => {
     setTests((prev) => prev.filter((t) => t.id !== testId));
+    if (isRealFirebaseConfigured) {
+      deleteFirestoreDoc('tests', testId);
+    }
   };
 
   const updateTestScore = (testId, studentId, { score, feedback }) => {
+    let nextStudentResults = null;
     setTests((prev) =>
       prev.map((t) => {
         if (t.id === testId) {
@@ -1735,50 +2078,61 @@ export function CollegeProvider({ children }) {
           const newScore = Number(score);
           const total = t.totalMarks || existing.total || 100;
           const percentage = total > 0 ? Math.round((newScore / total) * 100) : 0;
+          nextStudentResults = {
+            ...t.studentResults,
+            [studentId]: {
+              ...existing,
+              score: newScore,
+              percentage,
+              feedback: feedback !== undefined ? feedback : existing.feedback,
+              updatedAt: new Date().toISOString(),
+            },
+          };
           return {
             ...t,
-            studentResults: {
-              ...t.studentResults,
-              [studentId]: {
-                ...existing,
-                score: newScore,
-                percentage,
-                feedback: feedback !== undefined ? feedback : existing.feedback,
-                updatedAt: new Date().toISOString(),
-              },
-            },
+            studentResults: nextStudentResults,
           };
         }
         return t;
       })
     );
+
+    if (isRealFirebaseConfigured && nextStudentResults) {
+      setFirestoreDoc('tests', testId, { studentResults: nextStudentResults });
+    }
   };
 
   const submitTestResult = (testId, resultData) => {
     let currentTestTitle = resultData?.testTitle || 'Assessment';
+    let nextStudentResults = null;
     setTests((prev) =>
       prev.map((t) => {
         if (t.id === testId) {
           currentTestTitle = t.title;
+          nextStudentResults = {
+            ...t.studentResults,
+            [currentUser?.id]: {
+              ...resultData,
+              studentId: currentUser?.id,
+              studentName: currentUser?.name,
+              rollNo: currentUser?.rollNo,
+              department: currentUser?.department,
+              batch: currentUser?.batch,
+              completedAt: new Date().toISOString(),
+            },
+          };
           return {
             ...t,
-            studentResults: {
-              ...t.studentResults,
-              [currentUser?.id]: {
-                ...resultData,
-                studentId: currentUser?.id,
-                studentName: currentUser?.name,
-                rollNo: currentUser?.rollNo,
-                department: currentUser?.department,
-                batch: currentUser?.batch,
-                completedAt: new Date().toISOString(),
-              },
-            },
+            studentResults: nextStudentResults,
           };
         }
         return t;
       })
     );
+
+    if (isRealFirebaseConfigured && nextStudentResults) {
+      setFirestoreDoc('tests', testId, { studentResults: nextStudentResults });
+    }
 
     // Record at Teacher Bot History Tracker per Department and Roll No
     if (saveBotHistoryItem && currentUser) {
@@ -1827,6 +2181,7 @@ export function CollegeProvider({ children }) {
       reactions: {},
     };
 
+    let targetChat = null;
     setChats((prev) =>
       prev.map((c) => {
         if (c.id !== chatId) return c;
@@ -1839,12 +2194,19 @@ export function CollegeProvider({ children }) {
           const cutoff = now - 3 * 24 * 60 * 60 * 1000;
           currentMsgs = currentMsgs.filter((m) => !m.createdAt || m.createdAt > cutoff);
         }
-        return {
+        const updated = {
           ...c,
           messages: [...currentMsgs, newMsg],
+          updatedAt: new Date().toISOString(),
         };
+        targetChat = updated;
+        return updated;
       })
     );
+
+    if (isRealFirebaseConfigured && targetChat) {
+      setFirestoreDoc('chats', chatId, targetChat);
+    }
   };
 
   // Mark all unread messages in chat as read by current user
@@ -1953,10 +2315,14 @@ export function CollegeProvider({ children }) {
   // Delete an entire chat or group from list
   const deleteChat = (chatId) => {
     setChats((prev) => prev.filter((c) => c.id !== chatId));
+    if (isRealFirebaseConfigured) {
+      deleteFirestoreDoc('chats', chatId);
+    }
   };
 
   // Accept a pending chat request
   const acceptChatRequest = (chatId) => {
+    let targetChat = null;
     setChats((prev) =>
       prev.map((c) => {
         if (c.id !== chatId) return c;
@@ -1969,13 +2335,19 @@ export function CollegeProvider({ children }) {
           createdAt: Date.now(),
           status: 'read',
         };
-        return {
+        const updated = {
           ...c,
           isAccepted: true,
           messages: [...(c.messages || []), acceptNotice],
         };
+        targetChat = updated;
+        return updated;
       })
     );
+
+    if (isRealFirebaseConfigured && targetChat) {
+      setFirestoreDoc('chats', chatId, targetChat);
+    }
   };
 
   // Decline/Reject a chat request
@@ -2122,6 +2494,9 @@ export function CollegeProvider({ children }) {
     };
 
     setChats((prev) => [newChat, ...prev]);
+    if (isRealFirebaseConfigured) {
+      setFirestoreDoc('chats', newChat.id, newChat);
+    }
     return newChat.id;
   };
 
@@ -2154,29 +2529,44 @@ export function CollegeProvider({ children }) {
       ],
     };
     setChats((prev) => [newChat, ...prev]);
+    if (isRealFirebaseConfigured) {
+      setFirestoreDoc('chats', newChat.id, newChat);
+    }
     return newChat.id;
   };
 
   // ZOOM-STYLE LIVE MEETING & WAITING ROOM
   const startHostMeeting = ({ roomId = 'EDU-303-ZOOM', title, department } = {}) => {
-    setActiveMeeting((prev) => ({
-      ...prev,
-      roomId: roomId || prev?.roomId || 'EDU-303-ZOOM',
-      title: title || prev?.title || 'Classroom 303 • Live Virtual Lecture Studio',
-      department: department || prev?.department || 'Information Technology (AIML)',
-      isLive: true,
-      hostName: currentUser?.name || 'Prof. Divya C',
-      hostId: currentUser?.id || 'teach-1',
-      startedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    }));
+    setActiveMeeting((prev) => {
+      const next = {
+        ...prev,
+        roomId: roomId || prev?.roomId || 'EDU-303-ZOOM',
+        title: title || prev?.title || 'Classroom 303 • Live Virtual Lecture Studio',
+        department: department || prev?.department || 'Information Technology (AIML)',
+        isLive: true,
+        hostName: currentUser?.name || 'Prof. Divya C',
+        hostId: currentUser?.id || 'teach-1',
+        startedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      if (isRealFirebaseConfigured) {
+        setFirestoreDoc('meeting', 'active_meeting', next);
+      }
+      return next;
+    });
   };
 
   const endHostMeeting = () => {
-    setActiveMeeting((prev) => ({
-      ...prev,
-      isLive: false,
-      waitingRoom: [],
-    }));
+    setActiveMeeting((prev) => {
+      const next = {
+        ...prev,
+        isLive: false,
+        waitingRoom: [],
+      };
+      if (isRealFirebaseConfigured) {
+        setFirestoreDoc('meeting', 'active_meeting', next);
+      }
+      return next;
+    });
   };
 
   const requestJoinMeeting = ({ studentId, studentName, rollNo, department, avatar } = {}) => {
@@ -2206,19 +2596,29 @@ export function CollegeProvider({ children }) {
         requestedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
 
-      return {
+      const next = {
         ...prev,
         waitingRoom: [...(prev.waitingRoom || []), newReq],
       };
+      if (isRealFirebaseConfigured) {
+        setFirestoreDoc('meeting', 'active_meeting', next);
+      }
+      return next;
     });
   };
 
   const cancelJoinRequest = (studentId) => {
     const sid = studentId || currentUser?.id;
-    setActiveMeeting((prev) => ({
-      ...prev,
-      waitingRoom: (prev.waitingRoom || []).filter((r) => r.studentId !== sid),
-    }));
+    setActiveMeeting((prev) => {
+      const next = {
+        ...prev,
+        waitingRoom: (prev.waitingRoom || []).filter((r) => r.studentId !== sid),
+      };
+      if (isRealFirebaseConfigured) {
+        setFirestoreDoc('meeting', 'active_meeting', next);
+      }
+      return next;
+    });
   };
 
   const admitStudentToMeeting = (studentId) => {
@@ -2250,19 +2650,29 @@ export function CollegeProvider({ children }) {
             hasHandRaised: false,
           };
 
-      return {
+      const next = {
         ...prev,
         waitingRoom: newWaiting,
         admittedParticipants: [...(prev.admittedParticipants || []), newParticipant],
       };
+      if (isRealFirebaseConfigured) {
+        setFirestoreDoc('meeting', 'active_meeting', next);
+      }
+      return next;
     });
   };
 
   const denyStudentFromMeeting = (studentId) => {
-    setActiveMeeting((prev) => ({
-      ...prev,
-      waitingRoom: (prev.waitingRoom || []).filter((r) => r.studentId !== studentId),
-    }));
+    setActiveMeeting((prev) => {
+      const next = {
+        ...prev,
+        waitingRoom: (prev.waitingRoom || []).filter((r) => r.studentId !== studentId),
+      };
+      if (isRealFirebaseConfigured) {
+        setFirestoreDoc('meeting', 'active_meeting', next);
+      }
+      return next;
+    });
   };
 
   const admitAllWaitingStudents = () => {
@@ -2280,20 +2690,30 @@ export function CollegeProvider({ children }) {
         hasHandRaised: false,
       }));
 
-      return {
+      const next = {
         ...prev,
         waitingRoom: [],
         admittedParticipants: [...(prev.admittedParticipants || []), ...newlyAdmitted],
       };
+      if (isRealFirebaseConfigured) {
+        setFirestoreDoc('meeting', 'active_meeting', next);
+      }
+      return next;
     });
   };
 
   const leaveMeeting = (studentId) => {
     const sid = studentId || currentUser?.id;
-    setActiveMeeting((prev) => ({
-      ...prev,
-      admittedParticipants: (prev.admittedParticipants || []).filter((p) => p.studentId !== sid),
-    }));
+    setActiveMeeting((prev) => {
+      const next = {
+        ...prev,
+        admittedParticipants: (prev.admittedParticipants || []).filter((p) => p.studentId !== sid),
+      };
+      if (isRealFirebaseConfigured) {
+        setFirestoreDoc('meeting', 'active_meeting', next);
+      }
+      return next;
+    });
   };
 
   const toggleMeetingStudentMute = (studentId) => {
@@ -2545,14 +2965,22 @@ export function CollegeProvider({ children }) {
       reposted: false,
     };
     setPosts((prev) => [newPost, ...prev]);
+
+    if (isRealFirebaseConfigured) {
+      setFirestoreDoc('posts', newPost.id, newPost);
+    }
   };
 
   const deletePost = (postId) => {
     setPosts((prev) => prev.filter((p) => p.id !== postId));
+    if (isRealFirebaseConfigured) {
+      deleteFirestoreDoc('posts', postId);
+    }
   };
 
   const toggleLikePost = (postId) => {
     if (!currentUser) return;
+    let target = null;
     setPosts((prev) =>
       prev.map((p) => {
         if (p.id === postId) {
@@ -2561,16 +2989,22 @@ export function CollegeProvider({ children }) {
             ? (p.likedBy || []).filter((id) => id !== currentUser.id)
             : [...(p.likedBy || []), currentUser.id];
           const isNowLiked = !userLiked;
-          return {
+          const updated = {
             ...p,
             liked: isNowLiked,
             likedBy: updatedLikedBy,
             likes: isNowLiked ? p.likes + 1 : Math.max(0, p.likes - 1),
           };
+          target = updated;
+          return updated;
         }
         return p;
       })
     );
+
+    if (isRealFirebaseConfigured && target) {
+      setFirestoreDoc('posts', postId, target);
+    }
   };
 
   const toggleRepost = (postId) => {
@@ -2612,19 +3046,26 @@ export function CollegeProvider({ children }) {
       text: commentText.trim(),
       timestamp: 'Just now',
     };
+    let targetPost = null;
     setPosts((prev) =>
       prev.map((p) => {
         if (p.id === postId) {
           const currentList = p.commentsList || [];
-          return {
+          const updated = {
             ...p,
             comments: (p.comments || 0) + 1,
             commentsList: [...currentList, newComment],
           };
+          targetPost = updated;
+          return updated;
         }
         return p;
       })
     );
+
+    if (isRealFirebaseConfigured && targetPost) {
+      setFirestoreDoc('posts', postId, targetPost);
+    }
   };
 
   const sendConnectionRequest = (targetStudent) => {
@@ -2770,17 +3211,32 @@ export function CollegeProvider({ children }) {
       ...item,
     };
     setBotHistory((prev) => [record, ...prev]);
+
+    if (isRealFirebaseConfigured) {
+      setFirestoreDoc('botHistory', record.id, record);
+    }
   };
 
   const deleteBotHistoryItem = (id) => {
     setBotHistory((prev) => prev.filter((item) => item.id !== id));
+    if (isRealFirebaseConfigured) {
+      deleteFirestoreDoc('botHistory', id);
+    }
   };
 
   const clearBotHistory = (panelType) => {
     if (!panelType || panelType === 'all') {
+      const allIds = botHistory.map((b) => b.id);
       setBotHistory([]);
+      if (isRealFirebaseConfigured) {
+        allIds.forEach((id) => deleteFirestoreDoc('botHistory', id));
+      }
     } else {
+      const toDelete = botHistory.filter((item) => item.panel === panelType);
       setBotHistory((prev) => prev.filter((item) => item.panel !== panelType));
+      if (isRealFirebaseConfigured) {
+        toDelete.forEach((item) => deleteFirestoreDoc('botHistory', item.id));
+      }
     }
   };
 
