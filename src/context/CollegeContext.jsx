@@ -26,6 +26,8 @@ import {
   registerTeacherFirebase,
   loginFirebase,
   recordUserInFirebase,
+  fetchFirestoreCollection,
+  fetchFirestoreDoc,
 } from '../firebase/firestoreService';
 import { isRealFirebaseConfigured } from '../firebase/firebaseConfig';
 
@@ -183,6 +185,209 @@ export function CollegeProvider({ children }) {
         setWorkstoreTargetTab('meeting');
       }
     }
+  }, []);
+
+  // Real-time Firestore sync across devices (phone, laptop, tablet)
+  useEffect(() => {
+    if (!isRealFirebaseConfigured) return;
+
+    // 1. Live Admission Requests from any device
+    const unsubRequests = subscribeToCollection('requests', (reqDocs) => {
+      if (!reqDocs || !Array.isArray(reqDocs)) return;
+
+      setStudents((prevStudents) => {
+        let hasChanges = false;
+        const studentMap = new Map();
+        prevStudents.forEach((s) => {
+          if (s.id) studentMap.set(s.id, s);
+          if (s.email) studentMap.set(s.email.toLowerCase(), s);
+        });
+
+        reqDocs.forEach((req) => {
+          if (!req || (!req.name && !req.email)) return;
+          const reqEmail = req.email ? req.email.toLowerCase() : null;
+          const existing = (req.id ? studentMap.get(req.id) : null) || (reqEmail ? studentMap.get(reqEmail) : null);
+
+          if (existing) {
+            if (existing.status !== 'APPROVED') {
+              const updated = {
+                ...existing,
+                ...req,
+                id: existing.id || req.id,
+                status: 'PENDING',
+              };
+              studentMap.set(updated.id, updated);
+              if (updated.email) studentMap.set(updated.email.toLowerCase(), updated);
+              hasChanges = true;
+            }
+          } else {
+            // New student admission request submitted from another physical device
+            const newEntry = {
+              id: req.id || `stud-${Date.now()}`,
+              name: req.name || 'New Student',
+              rollNo: String(req.rollNo || '00'),
+              batch: req.batch || 'A',
+              department: req.department || 'Information Technology (AIML)',
+              email: req.email || '',
+              password: req.password || '',
+              status: 'PENDING',
+              registeredAt: req.registeredAt || req.createdAt || new Date().toISOString(),
+              avatar: req.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(req.name || 'Student')}`,
+              phone: req.phone || '+91 98000 00000',
+              semester: req.semester || 'Semester III',
+              academicYear: req.academicYear || '2026-2027',
+              classroom: req.classroom || '303',
+            };
+            studentMap.set(newEntry.id, newEntry);
+            if (newEntry.email) studentMap.set(newEntry.email.toLowerCase(), newEntry);
+            hasChanges = true;
+          }
+        });
+
+        if (hasChanges) {
+          const uniqueList = Array.from(new Set(Array.from(studentMap.values()).map((s) => s.id)))
+            .map((id) => Array.from(studentMap.values()).find((s) => s.id === id))
+            .filter(Boolean);
+          try {
+            localStorage.setItem('indira_ums_students', JSON.stringify(uniqueList));
+          } catch (e) {}
+          return uniqueList;
+        }
+        return prevStudents;
+      });
+    });
+
+    // 2. Live Users sync (approval status across all phones/laptops)
+    const unsubUsers = subscribeToCollection('users', (userDocs) => {
+      if (!userDocs || !Array.isArray(userDocs)) return;
+
+      setStudents((prevStudents) => {
+        let hasChanges = false;
+        const studentMap = new Map();
+        prevStudents.forEach((s) => {
+          if (s.id) studentMap.set(s.id, s);
+          if (s.email) studentMap.set(s.email.toLowerCase(), s);
+        });
+
+        userDocs
+          .filter((u) => u && (u.role === 'student' || (!u.role && u.rollNo)))
+          .forEach((u) => {
+            const uEmail = u.email ? u.email.toLowerCase() : null;
+            const existing = (u.id ? studentMap.get(u.id) : null) || (uEmail ? studentMap.get(uEmail) : null);
+
+            if (existing) {
+              if (
+                existing.status !== u.status ||
+                (u.department && existing.department !== u.department)
+              ) {
+                const updated = {
+                  ...existing,
+                  ...u,
+                  id: existing.id || u.id,
+                  status: u.status || existing.status,
+                };
+                studentMap.set(updated.id, updated);
+                if (updated.email) studentMap.set(updated.email.toLowerCase(), updated);
+                hasChanges = true;
+
+                // Sync active session if this student is currently viewing on mobile
+                setCurrentUser((curr) => {
+                  if (curr && (curr.id === existing.id || curr.email?.toLowerCase() === uEmail)) {
+                    const nextCurr = { ...curr, ...updated };
+                    try {
+                      localStorage.setItem('indira_ums_currentUser', JSON.stringify(nextCurr));
+                    } catch (e) {}
+                    return nextCurr;
+                  }
+                  return curr;
+                });
+              }
+            } else if (u.name && (u.email || u.rollNo)) {
+              const newEntry = {
+                id: u.id || `stud-${Date.now()}`,
+                name: u.name,
+                rollNo: String(u.rollNo || '00'),
+                batch: u.batch || 'A',
+                department: u.department || 'Information Technology (AIML)',
+                email: u.email || '',
+                password: u.password || '',
+                status: u.status || 'APPROVED',
+                registeredAt: u.registeredAt || new Date().toISOString(),
+                avatar: u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(u.name)}`,
+                phone: u.phone || '+91 98000 00000',
+                semester: u.semester || 'Semester III',
+                academicYear: u.academicYear || '2026-2027',
+                classroom: u.classroom || '303',
+              };
+              studentMap.set(newEntry.id, newEntry);
+              if (newEntry.email) studentMap.set(newEntry.email.toLowerCase(), newEntry);
+              hasChanges = true;
+            }
+          });
+
+        if (hasChanges) {
+          const uniqueList = Array.from(new Set(Array.from(studentMap.values()).map((s) => s.id)))
+            .map((id) => Array.from(studentMap.values()).find((s) => s.id === id))
+            .filter(Boolean);
+          try {
+            localStorage.setItem('indira_ums_students', JSON.stringify(uniqueList));
+          } catch (e) {}
+          return uniqueList;
+        }
+        return prevStudents;
+      });
+
+      // Also sync teachers across devices
+      setTeachers((prevTeachers) => {
+        let hasChanges = false;
+        const teacherMap = new Map();
+        prevTeachers.forEach((t) => {
+          if (t.id) teacherMap.set(t.id, t);
+          if (t.email) teacherMap.set(t.email.toLowerCase(), t);
+        });
+
+        userDocs
+          .filter((u) => u && (u.role === 'teacher' || (!u.role && u.facultyNo)))
+          .forEach((u) => {
+            const uEmail = u.email ? u.email.toLowerCase() : null;
+            const existing = (u.id ? teacherMap.get(u.id) : null) || (uEmail ? teacherMap.get(uEmail) : null);
+            if (!existing && u.name) {
+              const newTeacher = {
+                id: u.id || `teach-${Date.now()}`,
+                name: u.name,
+                facultyNo: u.facultyNo || 'FAC-100',
+                department: u.department || 'Information Technology',
+                email: u.email || '',
+                password: u.password || '',
+                designation: u.designation || 'Assistant Professor',
+                subjects: u.subjects || ['Information Technology'],
+                cabin: u.cabin || 'Faculty Block',
+                phone: u.phone || '+91 98201 44521',
+                avatar: u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(u.name)}`,
+              };
+              teacherMap.set(newTeacher.id, newTeacher);
+              if (newTeacher.email) teacherMap.set(newTeacher.email.toLowerCase(), newTeacher);
+              hasChanges = true;
+            }
+          });
+
+        if (hasChanges) {
+          const uniqueList = Array.from(new Set(Array.from(teacherMap.values()).map((t) => t.id)))
+            .map((id) => Array.from(teacherMap.values()).find((t) => t.id === id))
+            .filter(Boolean);
+          try {
+            localStorage.setItem('indira_ums_teachers', JSON.stringify(uniqueList));
+          } catch (e) {}
+          return uniqueList;
+        }
+        return prevTeachers;
+      });
+    });
+
+    return () => {
+      if (typeof unsubRequests === 'function') unsubRequests();
+      if (typeof unsubUsers === 'function') unsubUsers();
+    };
   }, []);
 
   const logout = () => {
@@ -378,16 +583,40 @@ export function CollegeProvider({ children }) {
   }, [currentUser?.email]);
 
   // Auth methods
-  const login = (email, password, role, stayLoggedIn = true) => {
+  const login = async (email, password, role, stayLoggedIn = true) => {
     const cleanEmail = String(email || '').trim().toLowerCase();
     const cleanPassword = String(password || '').trim();
 
     if (role === 'student') {
-      const student = students.find((s) => s.email?.toLowerCase() === cleanEmail);
+      let student = students.find((s) => s.email?.toLowerCase() === cleanEmail);
+
+      // If student is not found or is PENDING, fetch freshest status directly from Firestore
+      if ((!student || student.status === 'PENDING') && isRealFirebaseConfigured) {
+        try {
+          const sanitized = cleanEmail.replace(/[^a-z0-9]/g, '_');
+          const userDoc = await fetchFirestoreDoc('users', sanitized);
+          if (userDoc && (userDoc.role === 'student' || userDoc.rollNo)) {
+            student = { ...student, ...userDoc };
+            setStudents((prev) => {
+              const exists = prev.some((s) => s.id === student.id || s.email?.toLowerCase() === cleanEmail);
+              const updatedList = exists
+                ? prev.map((s) => (s.id === student.id || s.email?.toLowerCase() === cleanEmail ? student : s))
+                : [student, ...prev];
+              try {
+                localStorage.setItem('indira_ums_students', JSON.stringify(updatedList));
+              } catch (e) {}
+              return updatedList;
+            });
+          }
+        } catch (e) {
+          console.warn('Firestore live login check notice:', e);
+        }
+      }
+
       if (!student) {
         return { success: false, error: 'Student account not found with this email.' };
       }
-      if (student.password !== cleanPassword) {
+      if (student.password && student.password !== cleanPassword) {
         return { success: false, error: 'Incorrect password entered.' };
       }
       if (student.status === 'PENDING') {
@@ -437,11 +666,23 @@ export function CollegeProvider({ children }) {
       setActiveMode('dashboard');
       return { success: true, user: student };
     } else {
-      const teacher = teachers.find((t) => t.email?.toLowerCase() === cleanEmail);
+      let teacher = teachers.find((t) => t.email?.toLowerCase() === cleanEmail);
+
+      if (!teacher && isRealFirebaseConfigured) {
+        try {
+          const sanitized = cleanEmail.replace(/[^a-z0-9]/g, '_');
+          const userDoc = await fetchFirestoreDoc('users', sanitized);
+          if (userDoc && (userDoc.role === 'teacher' || userDoc.facultyNo)) {
+            teacher = userDoc;
+            setTeachers((prev) => [teacher, ...prev.filter((t) => t.email?.toLowerCase() !== cleanEmail)]);
+          }
+        } catch (e) {}
+      }
+
       if (!teacher) {
         return { success: false, error: 'Faculty account not found with this email.' };
       }
-      if (teacher.password !== cleanPassword) {
+      if (teacher.password && teacher.password !== cleanPassword) {
         return { success: false, error: 'Incorrect password entered.' };
       }
 
@@ -484,7 +725,7 @@ export function CollegeProvider({ children }) {
   const registerStudent = ({ name, rollNo, department, email, password, autoApprove = false, stayLoggedIn = true }) => {
     const cleanEmail = String(email || '').trim().toLowerCase();
     // Check if email exists
-    if (students.some((s) => s.email?.toLowerCase() === cleanEmail)) {
+    if (students.some((s) => s.email?.toLowerCase() === cleanEmail && s.status !== 'REJECTED')) {
       return { success: false, error: 'A student with this email is already registered.' };
     }
     const rollInt = parseInt(rollNo, 10) || 1;
@@ -510,14 +751,16 @@ export function CollegeProvider({ children }) {
       classroom: '303',
     };
 
-    const nextStudents = [newStudent, ...students];
+    const nextStudents = [newStudent, ...students.filter((s) => s.email?.toLowerCase() !== cleanEmail)];
     setStudents(nextStudents);
     try {
       localStorage.setItem('indira_ums_students', JSON.stringify(nextStudents));
     } catch (e) {}
 
-    // Record in Firebase Authentication and Firestore Console
+    // Record in Firebase Authentication and Firestore Console across devices
     if (isRealFirebaseConfigured) {
+      const sanitizedEmail = cleanEmail.replace(/[^a-z0-9]/g, '_');
+
       recordUserInFirebase({
         email: cleanEmail,
         password: String(password || '').trim(),
@@ -527,8 +770,10 @@ export function CollegeProvider({ children }) {
       }).catch((e) => console.warn('Firebase student registration notice:', e));
 
       setFirestoreDoc('users', newStudent.id, newStudent);
+      setFirestoreDoc('users', sanitizedEmail, newStudent);
       if (!autoApprove) {
         setFirestoreDoc('requests', newStudent.id, newStudent);
+        setFirestoreDoc('requests', sanitizedEmail, newStudent);
       }
     }
 
@@ -615,7 +860,14 @@ export function CollegeProvider({ children }) {
   };
 
   const approveStudent = (studentId) => {
-    const nextStudents = students.map((s) => (s.id === studentId ? { ...s, status: 'APPROVED' } : s));
+    let approvedStudent = null;
+    const nextStudents = students.map((s) => {
+      if (s.id === studentId || (s.email && s.email.toLowerCase() === String(studentId).toLowerCase())) {
+        approvedStudent = { ...s, status: 'APPROVED' };
+        return approvedStudent;
+      }
+      return s;
+    });
     setStudents(nextStudents);
     try {
       localStorage.setItem('indira_ums_students', JSON.stringify(nextStudents));
@@ -624,22 +876,68 @@ export function CollegeProvider({ children }) {
     if (isRealFirebaseConfigured) {
       setFirestoreDoc('users', studentId, { status: 'APPROVED' });
       deleteFirestoreDoc('requests', studentId);
+      if (approvedStudent?.email) {
+        const sanitized = approvedStudent.email.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        setFirestoreDoc('users', sanitized, { status: 'APPROVED' });
+        deleteFirestoreDoc('requests', sanitized);
+      }
     }
 
-    const approvedStudent = students.find((s) => s.id === studentId);
     if (approvedStudent) {
       setNotifications((prev) => [
         {
           id: `notif-${Date.now()}`,
           title: 'Admission Approved',
           category: 'request',
-          message: `${approvedStudent.name} (Roll ${approvedStudent.rollNo}) has been approved and granted login access to Indira UMS.`,
+          message: `${approvedStudent.name} (Roll ${approvedStudent.rollNo}, Dept: ${approvedStudent.department}) has been approved and granted login access to Indira UMS across all devices.`,
           timestamp: 'Just now',
           readBy: [],
         },
         ...prev,
       ]);
     }
+  };
+
+  const approveAllStudentsForDepartment = (dept = 'ALL') => {
+    let count = 0;
+    const nextStudents = students.map((s) => {
+      const matchDept = dept === 'ALL' || s.department === dept || (dept.includes('Information Technology') && s.department?.includes('Information Technology'));
+      if (s.status === 'PENDING' && matchDept) {
+        count++;
+        const approved = { ...s, status: 'APPROVED' };
+        if (isRealFirebaseConfigured) {
+          setFirestoreDoc('users', s.id, { status: 'APPROVED' });
+          deleteFirestoreDoc('requests', s.id);
+          if (s.email) {
+            const sanitized = s.email.toLowerCase().replace(/[^a-z0-9]/g, '_');
+            setFirestoreDoc('users', sanitized, { status: 'APPROVED' });
+            deleteFirestoreDoc('requests', sanitized);
+          }
+        }
+        return approved;
+      }
+      return s;
+    });
+
+    if (count > 0) {
+      setStudents(nextStudents);
+      try {
+        localStorage.setItem('indira_ums_students', JSON.stringify(nextStudents));
+      } catch (e) {}
+
+      setNotifications((prev) => [
+        {
+          id: `notif-${Date.now()}`,
+          title: 'Bulk Admissions Approved',
+          category: 'request',
+          message: `Approved ${count} student admission requests for ${dept === 'ALL' ? 'all departments' : dept}.`,
+          timestamp: 'Just now',
+          readBy: [],
+        },
+        ...prev,
+      ]);
+    }
+    return count;
   };
 
   const instantApproveAndLoginStudent = (studentId) => {
@@ -673,13 +971,27 @@ export function CollegeProvider({ children }) {
   };
 
   const rejectStudent = (studentId) => {
-    setStudents((prev) =>
-      prev.map((s) => (s.id === studentId ? { ...s, status: 'REJECTED' } : s))
-    );
+    let rejectedStudent = null;
+    const nextStudents = students.map((s) => {
+      if (s.id === studentId || (s.email && s.email.toLowerCase() === String(studentId).toLowerCase())) {
+        rejectedStudent = { ...s, status: 'REJECTED' };
+        return rejectedStudent;
+      }
+      return s;
+    });
+    setStudents(nextStudents);
+    try {
+      localStorage.setItem('indira_ums_students', JSON.stringify(nextStudents));
+    } catch (e) {}
 
     if (isRealFirebaseConfigured) {
       setFirestoreDoc('users', studentId, { status: 'REJECTED' });
       deleteFirestoreDoc('requests', studentId);
+      if (rejectedStudent?.email) {
+        const sanitized = rejectedStudent.email.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        setFirestoreDoc('users', sanitized, { status: 'REJECTED' });
+        deleteFirestoreDoc('requests', sanitized);
+      }
     }
   };
 
@@ -2486,6 +2798,7 @@ export function CollegeProvider({ children }) {
         registerStudent,
         registerTeacher,
         approveStudent,
+        approveAllStudentsForDepartment,
         rejectStudent,
         instantApproveAndLoginStudent,
 

@@ -57,6 +57,33 @@ export async function setFirestoreDoc(collectionName, docId, data) {
   }
 }
 
+// Fetch all documents in a collection once
+export async function fetchFirestoreCollection(collectionName) {
+  try {
+    if (!db) return [];
+    const colRef = collection(db, collectionName);
+    const snap = await getDocs(colRef);
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    console.warn(`Error fetching ${collectionName}:`, err);
+    return [];
+  }
+}
+
+// Fetch single document
+export async function fetchFirestoreDoc(collectionName, docId) {
+  try {
+    if (!db) return null;
+    const docRef = doc(db, collectionName, String(docId));
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) return null;
+    return { id: snap.id, ...snap.data() };
+  } catch (err) {
+    console.warn(`Error fetching doc ${collectionName}/${docId}:`, err);
+    return null;
+  }
+}
+
 // Add document with auto ID
 export async function addFirestoreDoc(collectionName, data) {
   try {

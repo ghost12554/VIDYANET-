@@ -13,6 +13,8 @@ import {
   Clock,
   Eye,
   EyeOff,
+  CheckCircle2,
+  RefreshCw,
 } from 'lucide-react';
 
 export default function LoginPage() {
@@ -79,13 +81,26 @@ export default function LoginPage() {
     'Software Engineering',
   ];
 
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+
+  // Live auto-approval listener: when teacher approves on laptop, student phone immediately detects it
+  useEffect(() => {
+    if (pendingNotice?.email) {
+      const match = students.find((s) => s.email?.toLowerCase() === pendingNotice.email.toLowerCase());
+      if (match && match.status === 'APPROVED') {
+        setPendingNotice((prev) => (prev ? { ...prev, isApproved: true } : null));
+        setErrorMessage('');
+      }
+    }
+  }, [students, pendingNotice?.email]);
+
   // Handle Sign In (Email & Password only)
-  const handleSignIn = (e) => {
+  const handleSignIn = async (e) => {
     if (e) e.preventDefault();
     setErrorMessage('');
     setPendingNotice(null);
 
-    const res = login(email, password, authRole, dontLogOut);
+    const res = await login(email, password, authRole, dontLogOut);
     if (!res.success) {
       if (res.isPending) {
         setErrorMessage(
@@ -117,6 +132,23 @@ export default function LoginPage() {
           localStorage.removeItem('indira_ums_remembered_login');
         } catch (e) {}
       }
+    }
+  };
+
+  const handleManualCheckStatus = async () => {
+    if (!pendingNotice?.email) return;
+    setIsCheckingStatus(true);
+    try {
+      const res = await login(pendingNotice.email, password || 'password123', 'student', dontLogOut);
+      if (res.success) {
+        setPendingNotice((prev) => (prev ? { ...prev, isApproved: true } : null));
+      } else if (!res.isPending) {
+        setErrorMessage(res.error);
+      }
+    } catch (e) {
+      console.warn('Manual check error:', e);
+    } finally {
+      setTimeout(() => setIsCheckingStatus(false), 500);
     }
   };
 
@@ -290,31 +322,82 @@ export default function LoginPage() {
 
           {/* Pending Student Registration Notice Banner */}
           {pendingNotice && (
-            <div className="mb-5 p-4 rounded-2xl bg-purple-500/15 border border-purple-500/30 text-purple-200 text-xs space-y-2.5">
-              <div className="flex items-center gap-2 text-purple-300 font-bold text-sm">
-                <Clock className="w-4 h-4 text-purple-400" />
-                <span>Admission Request Dispatched!</span>
-              </div>
-              <p className="text-[11px] text-slate-300 leading-relaxed">
-                Hello <strong>{pendingNotice.studentName}</strong> (Roll #{pendingNotice.rollNo})! Your registration has been sent to the <strong>Teacher Portal Request Panel</strong>.
-              </p>
-              <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[10px] space-y-1 font-mono text-slate-400">
-                <p>• Department: {pendingNotice.department}</p>
-                <p>• Status: Awaiting Faculty Approval</p>
-                <p>• Email: {pendingNotice.email}</p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMode('signin');
-                  setEmail(pendingNotice.email);
-                  setPendingNotice(null);
-                }}
-                className="w-full mt-1 py-2 px-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs transition"
-              >
-                Go to Sign In Screen
-              </button>
+            <div className={`mb-5 p-4 rounded-2xl border text-xs space-y-3 transition-all ${
+              pendingNotice.isApproved
+                ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-200'
+                : 'bg-purple-500/15 border-purple-500/30 text-purple-200'
+            }`}>
+              {pendingNotice.isApproved ? (
+                <>
+                  <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                    <span>Admission Request APPROVED by Faculty!</span>
+                  </div>
+                  <p className="text-[11px] text-slate-200 leading-relaxed">
+                    Great news <strong>{pendingNotice.studentName}</strong>! Your admission request for <strong>{pendingNotice.department}</strong> has been reviewed and accepted by faculty.
+                  </p>
+                  <div className="p-2.5 rounded-xl bg-slate-950/80 border border-emerald-500/30 text-[10px] space-y-1 font-mono text-emerald-300">
+                    <p>• Department: {pendingNotice.department}</p>
+                    <p>• Status: Active & Approved</p>
+                    <p>• Access: Granted across all devices</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('signin');
+                      setEmail(pendingNotice.email);
+                      setPendingNotice(null);
+                    }}
+                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-2"
+                  >
+                    <UserCheck className="w-4 h-4" />
+                    <span>Log In to Student Portal Now</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-purple-300 font-bold text-sm">
+                      <Clock className="w-4 h-4 text-purple-400" />
+                      <span>Admission Request Dispatched!</span>
+                    </div>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-mono">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      Synced to Teacher Portal
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Hello <strong>{pendingNotice.studentName}</strong> (Roll #{pendingNotice.rollNo})! Your registration has been sent live to the <strong>Teacher Portal Request Panel</strong>.
+                  </p>
+                  <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[10px] space-y-1 font-mono text-slate-400">
+                    <p>• Department: {pendingNotice.department}</p>
+                    <p>• Status: Awaiting Faculty Approval in Queue</p>
+                    <p>• Email: {pendingNotice.email}</p>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleManualCheckStatus}
+                      disabled={isCheckingStatus}
+                      className="flex-1 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs transition flex items-center justify-center gap-1.5"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 text-indigo-400 ${isCheckingStatus ? 'animate-spin' : ''}`} />
+                      <span>{isCheckingStatus ? 'Checking...' : 'Check Approval Status'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthMode('signin');
+                        setEmail(pendingNotice.email);
+                        setPendingNotice(null);
+                      }}
+                      className="py-2 px-3 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 text-purple-300 border border-purple-500/40 font-bold text-xs transition"
+                    >
+                      Sign In Screen
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
 

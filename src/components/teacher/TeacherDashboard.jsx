@@ -26,6 +26,11 @@ import {
   Upload,
   CheckSquare,
   Square,
+  Search,
+  Filter,
+  CheckCheck,
+  Building2,
+  Radio,
 } from 'lucide-react';
 import {
   readFileAsAttachment,
@@ -38,6 +43,7 @@ export default function TeacherDashboard() {
     currentUser,
     students,
     approveStudent,
+    approveAllStudentsForDepartment,
     rejectStudent,
     tasks,
     createTask,
@@ -52,6 +58,10 @@ export default function TeacherDashboard() {
 
   // Notification Selection State
   const [selectedNotifIds, setSelectedNotifIds] = useState([]);
+
+  // Admission request filter & search state
+  const [selectedDeptFilter, setSelectedDeptFilter] = useState('ALL');
+  const [requestSearch, setRequestSearch] = useState('');
 
   // New task form state
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
@@ -68,12 +78,80 @@ export default function TeacherDashboard() {
     attachments: [],
   });
 
+  // Departments List
+  const DEPARTMENTS = [
+    { id: 'ALL', name: 'All Departments', short: 'All' },
+    { id: 'Information Technology (AIML)', name: 'Information Technology (AIML)', short: 'IT (AIML)' },
+    { id: 'Computer Science & Engineering', name: 'Computer Science & Engineering', short: 'CSE' },
+    { id: 'Data Science & Analytics', name: 'Data Science & Analytics', short: 'Data Science' },
+    { id: 'Software Engineering', name: 'Software Engineering', short: 'Software Eng' },
+  ];
+
+  const getDeptColor = (deptName) => {
+    if (!deptName) return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
+    if (deptName.includes('Computer Science')) return 'bg-sky-500/20 text-sky-300 border-sky-500/30';
+    if (deptName.includes('Data Science')) return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+    if (deptName.includes('Software')) return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+    return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
+  };
+
   // Filter pending student registration requests
   const pendingStudents = students.filter((s) => s.status === 'PENDING');
   const approvedStudents = students.filter((s) => s.status === 'APPROVED');
 
+  // Filtered requests by selected department and search query
+  const filteredPendingStudents = pendingStudents.filter((stud) => {
+    const matchesDept =
+      selectedDeptFilter === 'ALL' ||
+      stud.department === selectedDeptFilter ||
+      (selectedDeptFilter.includes('Information Technology') && stud.department?.includes('Information Technology'));
+
+    const query = requestSearch.trim().toLowerCase();
+    const matchesSearch =
+      !query ||
+      stud.name?.toLowerCase().includes(query) ||
+      stud.rollNo?.toString().includes(query) ||
+      stud.email?.toLowerCase().includes(query) ||
+      stud.department?.toLowerCase().includes(query);
+
+    return matchesDept && matchesSearch;
+  });
+
   const handleApprove = (student) => {
     approveStudent(student.id);
+    showAlert(`Admission approved! ${student.name} (${student.department}) can now log in immediately from any device.`, 'success');
+  };
+
+  const handleDecline = (student) => {
+    showConfirm({
+      title: 'Decline Admission Request',
+      message: `Are you sure you want to decline admission for ${student.name} (Roll #${student.rollNo}, ${student.department})? This cannot be undone.`,
+      confirmText: 'Decline Request',
+      cancelText: 'Cancel',
+      type: 'danger',
+      onConfirm: () => {
+        rejectStudent(student.id);
+        showAlert(`Admission request for ${student.name} was declined.`, 'info');
+      },
+    });
+  };
+
+  const handleApproveAllInView = () => {
+    const targetDept = selectedDeptFilter;
+    const count = filteredPendingStudents.length;
+    if (count === 0) return;
+
+    showConfirm({
+      title: 'Approve Pending Admissions',
+      message: `Are you sure you want to approve all ${count} student admission requests for ${targetDept === 'ALL' ? 'all departments' : targetDept}? Approved students will immediately be granted login access on all devices.`,
+      confirmText: `Approve All (${count})`,
+      cancelText: 'Cancel',
+      type: 'primary',
+      onConfirm: () => {
+        const approvedCount = approveAllStudentsForDepartment(targetDept);
+        showAlert(`Successfully approved ${approvedCount} students for ${targetDept === 'ALL' ? 'all departments' : targetDept}!`, 'success');
+      },
+    });
   };
 
   const handleTeacherFileAttach = async (e) => {
@@ -153,14 +231,25 @@ export default function TeacherDashboard() {
           </div>
 
           {/* Quick Metrics */}
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-rose-500/30 text-center min-w-[140px]">
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-rose-500/30 text-center min-w-[130px]">
               <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
                 Pending Requests
               </span>
               <p className="text-2xl font-black text-rose-400">{pendingStudents.length}</p>
-              <span className="text-[10px] text-slate-400">Requires Approval</span>
+              <span className="text-[10px] text-slate-400">All Departments</span>
             </div>
+            {currentUser?.department && (
+              <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-purple-500/30 text-center min-w-[130px]">
+                <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                  My Dept Queue
+                </span>
+                <p className="text-2xl font-black text-purple-400">
+                  {pendingStudents.filter((s) => s.department === currentUser?.department || (currentUser.department.includes('Information Technology') && s.department?.includes('Information Technology'))).length}
+                </p>
+                <span className="text-[10px] text-slate-400">Requires Review</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -168,92 +257,213 @@ export default function TeacherDashboard() {
       {/* 2. Dynamic Lecture Tracker */}
       <LectureTrackerCard />
 
-      {/* 3. GAME-LIKE STUDENT REGISTRATION REQUEST PANEL */}
+      {/* 3. GAME-LIKE STUDENT REGISTRATION REQUEST PANEL ACCORDING TO DEPARTMENT */}
       <div className="bg-slate-900/90 rounded-3xl p-6 border border-slate-800 shadow-xl space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between pb-3 border-b border-slate-800 gap-3">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
-              <ShieldCheck className="w-4 h-4" />
+              <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                Student Admission Request Queue
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base font-bold text-white uppercase tracking-wider">
+                  Student Admission Request Queue
+                </h3>
                 {pendingStudents.length > 0 && (
                   <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-bold animate-pulse">
                     {pendingStudents.length} Action Needed
                   </span>
                 )}
-              </h3>
-              <p className="text-xs text-slate-400">
-                Newly registered students appear here like game quests. Only upon teacher approval can students log in!
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-mono">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Live Cross-Device Sync
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Students registering from mobile, tablet, or PC appear here live. Filter requests by department or approve in batches!
               </p>
             </div>
           </div>
-          <span className="text-xs text-slate-400 font-mono">
-            {pendingStudents.length} Pending • {approvedStudents.length} Active
-          </span>
+
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            {filteredPendingStudents.length > 0 && (
+              <button
+                onClick={handleApproveAllInView}
+                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-md shadow-emerald-600/30 transition flex items-center gap-1.5 whitespace-nowrap"
+                title="Approve all admission requests currently in view"
+              >
+                <CheckCheck className="w-3.5 h-3.5" />
+                <span>Approve All In View ({filteredPendingStudents.length})</span>
+              </button>
+            )}
+
+            <span className="text-xs text-slate-400 font-mono whitespace-nowrap">
+              {pendingStudents.length} Pending • {approvedStudents.length} Active
+            </span>
+          </div>
+        </div>
+
+        {/* Department Filter Selector & Search Toolbar */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 pt-1">
+          {/* Department Tabs */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full scrollbar-thin">
+            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1 mr-1 shrink-0">
+              <Filter className="w-3 h-3 text-indigo-400" />
+              Dept:
+            </span>
+            {DEPARTMENTS.map((dept) => {
+              const isSelected = selectedDeptFilter === dept.id;
+              const deptPendingCount =
+                dept.id === 'ALL'
+                  ? pendingStudents.length
+                  : pendingStudents.filter((s) => s.department === dept.id || (dept.id.includes('Information Technology') && s.department?.includes('Information Technology'))).length;
+
+              return (
+                <button
+                  key={dept.id}
+                  onClick={() => setSelectedDeptFilter(dept.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
+                    isSelected
+                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 border border-indigo-400/40'
+                      : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 border border-slate-700/60'
+                  }`}
+                  title={dept.name}
+                >
+                  <span>{dept.short}</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                      deptPendingCount > 0
+                        ? isSelected
+                          ? 'bg-rose-500 text-white'
+                          : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                        : 'bg-slate-700 text-slate-400'
+                    }`}
+                  >
+                    {deptPendingCount}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Search within admission requests */}
+          <div className="relative min-w-[200px] md:w-64">
+            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              placeholder="Search by name, roll, email..."
+              value={requestSearch}
+              onChange={(e) => setRequestSearch(e.target.value)}
+              className="w-full bg-slate-800/80 border border-slate-700/80 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
+            />
+            {requestSearch && (
+              <button
+                onClick={() => setRequestSearch('')}
+                className="absolute right-2.5 top-2 text-slate-400 hover:text-white text-xs"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Quest Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
-          {pendingStudents.length > 0 ? (
-            pendingStudents.map((stud) => (
-              <div
-                key={stud.id}
-                className="bg-gradient-to-br from-slate-900 via-slate-850 to-slate-900 p-5 rounded-2xl border-2 border-dashed border-purple-500/40 hover:border-purple-500 transition shadow-lg relative group"
-              >
-                {/* Gamified Quest Badge */}
-                <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
-                  <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono text-[10px] font-bold uppercase tracking-wider">
-                    Student Admission Request
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-mono">
-                    Roll #{stud.rollNo}
-                  </span>
-                </div>
+          {filteredPendingStudents.length > 0 ? (
+            filteredPendingStudents.map((stud) => {
+              const deptBadgeClass = getDeptColor(stud.department);
 
-                <div className="flex items-center gap-3">
-                  <img
-                    src={stud.avatar}
-                    alt={stud.name}
-                    className="w-12 h-12 rounded-xl object-cover ring-2 ring-purple-400/40"
-                  />
-                  <div className="min-w-0">
-                    <h4 className="text-sm font-bold text-white truncate">{stud.name}</h4>
-                    <p className="text-[11px] text-slate-300 truncate">{stud.email}</p>
-                    <p className="text-[10px] text-indigo-400 font-medium">
-                      Batch {stud.batch} • {stud.department}
-                    </p>
+              return (
+                <div
+                  key={stud.id}
+                  className="bg-gradient-to-br from-slate-900 via-slate-850 to-slate-900 p-5 rounded-2xl border-2 border-dashed border-purple-500/40 hover:border-purple-500 transition shadow-lg relative group flex flex-col justify-between"
+                >
+                  <div>
+                    {/* Gamified Quest Badge with Department Indicator */}
+                    <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-800 gap-2">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border truncate ${deptBadgeClass}`}>
+                        {stud.department || 'General IT'}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                        Roll #{stud.rollNo}
+                      </span>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <img
+                        src={stud.avatar}
+                        alt={stud.name}
+                        className="w-12 h-12 rounded-xl object-cover ring-2 ring-purple-400/40 shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-1">
+                          <h4 className="text-sm font-bold text-white truncate">{stud.name}</h4>
+                          <span className="px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 font-mono text-[9px] font-semibold">
+                            Batch {stud.batch}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-300 truncate mt-0.5">{stud.email}</p>
+                        <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1 font-mono">
+                          <Clock className="w-2.5 h-2.5 text-amber-400" />
+                          <span>
+                            {stud.registeredAt
+                              ? new Date(stud.registeredAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                              : 'Recent request'}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
+                    <button
+                      onClick={() => handleApprove(stud)}
+                      className="flex-1 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-md shadow-emerald-600/30 transition flex items-center justify-center gap-1.5"
+                    >
+                      <UserCheck className="w-3.5 h-3.5" />
+                      <span>Accept & Allow Login</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleDecline(stud)}
+                      className="p-2 rounded-xl bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-300 border border-slate-700 transition"
+                      title="Decline request"
+                    >
+                      <UserX className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
-
-                <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
-                  <button
-                    onClick={() => handleApprove(stud)}
-                    className="flex-1 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-md shadow-emerald-600/30 transition flex items-center justify-center gap-1.5"
-                  >
-                    <UserCheck className="w-3.5 h-3.5" />
-                    <span>Accept & Allow Login</span>
-                  </button>
-
-                  <button
-                    onClick={() => rejectStudent(stud.id)}
-                    className="p-2 rounded-xl bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-300 border border-slate-700 transition"
-                    title="Decline request"
-                  >
-                    <UserX className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))
+              );
+            })
+          ) : pendingStudents.length > 0 ? (
+            /* There are pending requests, but none match this department or search query */
+            <div className="col-span-full py-8 text-center text-xs text-slate-400 bg-slate-950/40 rounded-2xl border border-slate-800/80 space-y-2">
+              <Filter className="w-7 h-7 text-indigo-400 mx-auto opacity-70" />
+              <p className="text-sm font-semibold text-slate-200">
+                No pending requests in "{selectedDeptFilter === 'ALL' ? 'Search Results' : selectedDeptFilter}"
+              </p>
+              <p className="text-slate-400">
+                There are currently {pendingStudents.length} pending request{pendingStudents.length > 1 ? 's' : ''} in other departments.
+              </p>
+              <button
+                onClick={() => {
+                  setSelectedDeptFilter('ALL');
+                  setRequestSearch('');
+                }}
+                className="mt-2 px-3.5 py-1.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/40 font-bold transition inline-flex items-center gap-1.5"
+              >
+                <span>View All Departments ({pendingStudents.length})</span>
+              </button>
+            </div>
           ) : (
-            <div className="col-span-3 py-8 text-center text-xs text-slate-400 bg-slate-950/40 rounded-2xl border border-slate-800/80">
+            /* Zero pending requests across entire college */
+            <div className="col-span-full py-8 text-center text-xs text-slate-400 bg-slate-950/40 rounded-2xl border border-slate-800/80">
               <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-2 opacity-80" />
               <p className="text-sm font-semibold text-slate-300">
                 All student admission requests have been reviewed!
               </p>
               <p className="text-slate-500 mt-1">
-                When a new student registers on the portal, their card will instantly appear here for your verification.
+                When a new student registers from a mobile phone or any other device, their card will instantly appear here for your verification.
               </p>
             </div>
           )}
